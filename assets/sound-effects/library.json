@@ -1,0 +1,62 @@
+[
+  {
+    "file": "soft-tap.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 110,
+    "description": "Tiếng gõ ngắn cho nhãn và chữ",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  },
+  {
+    "file": "glass-chime.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 480,
+    "description": "Chuông nhẹ khi mở ý mới",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  },
+  {
+    "file": "quick-swish.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 350,
+    "description": "Tiếng lướt cho chuyển cảnh ngắn",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  },
+  {
+    "file": "low-impact.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 420,
+    "description": "Nhịp trầm nhấn tiêu đề",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  },
+  {
+    "file": "rising-glint.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 770,
+    "description": "Hiệu ứng sáng dần khi chuyển nhịp",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  },
+  {
+    "file": "double-click.wav",
+    "tags": [
+      "quizzy",
+      "hay-dung"
+    ],
+    "durationMs": 215,
+    "description": "Hai nhịp bấm cho thẻ và danh sách",
+    "source": "Tạo tổng hợp cho Fabuloki"
+  }
+]

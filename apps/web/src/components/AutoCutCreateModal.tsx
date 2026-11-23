@@ -1,0 +1,640 @@
+"use client";
+
+import { ChevronDown, ChevronRight, Loader2, Scissors, Upload } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AUTO_CUT_DEFAULT_PARAMS,
+  createAutoCut,
+  getAutoCutSources,
+  planAutoCut,
+  uploadAsset,
+  type AutoCutAspect,
+  type AutoCutBackground,
+  type AutoCutLayout,
+  type AutoCutMode,
+  type AutoCutParams,
+  type Brief,
+  type FileInfo,
+} from "@/lib/api";
+import { useUploadEvents } from "@/lib/useEvents";
+import { Button } from "@/components/Button";
+import { CheckboxField, Field } from "@/components/Field";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { InfoHint } from "@/components/InfoHint";
+import { Modal } from "@/components/Modal";
+import { OptionCard, OptionCardGroup } from "@/components/OptionCard";
+import { Panel } from "@/components/Panel";
+import { ProgressBar } from "@/components/ProgressBar";
+import { StyleSelect } from "@/components/StyleSelect";
+import {
+  BriefFields,
+  DEFAULT_BRIEF,
+  MUSIC_MODE_LABEL,
+  SFX_MODE_LABEL,
+} from "@/components/BriefFields";
+import {
+  BACKGROUND_DESC,
+  BACKGROUND_LABEL,
+  LAYOUT_DESC,
+  LAYOUT_LABEL,
+  MODE_DESC,
+  MODE_LABEL,
+  aspectSize,
+  clock,
+} from "@/components/AutoCutCommon";
+import { formatBytes } from "@/lib/format";
+import { useT } from "@/lib/i18n";
+
+const MODES: AutoCutMode[] = ["time", "ai", "prompt"];
+const ASPECTS: AutoCutAspect[] = ["keep", "9:16", "16:9", "1:1", "4:5"];
+const LAYOUTS: AutoCutLayout[] = ["auto", "crop", "fit"];
+const BACKGROUNDS: AutoCutBackground[] = ["gemini", "blur", "style"];
+
+function briefPayload(brief: Brief): Partial<Brief> {
+  const payload: Partial<Brief> = { ...brief };
+  delete payload.styleId;
+  return payload;
+}
+
+function NumField({
+  id,
+  label,
+  value,
+  min,
+  disabled,
+  onChange,
+  width = "w-28",
+}: {
+  id: string;
+  label: string;
+  value: string;
+  min: number;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+  width?: string;
+}) {
+  return (
+    <Field label={label} htmlFor={id} className={width}>
+      <input
+        id={id}
+        className="input"
+        type="number"
+        min={min}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </Field>
+  );
+}
+
+export function AutoCutCreateModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+
+  onCreated: (sessionId: string) => void;
+}) {
+  const { t, tf } = useT();
+
+  const [sources, setSources] = useState<FileInfo[] | null>(null);
+  const [sourcesError, setSourcesError] = useState<string | null>(null);
+  const [sourceRel, setSourceRel] = useState("");
+  const [name, setName] = useState("");
+
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [mode, setMode] = useState<AutoCutMode>("time");
+  const [minutes, setMinutes] = useState(String(AUTO_CUT_DEFAULT_PARAMS.minutes));
+  const [overlapSec, setOverlapSec] = useState(
+    String(AUTO_CUT_DEFAULT_PARAMS.overlapSec)
+  );
+  const [count, setCount] = useState(String(AUTO_CUT_DEFAULT_PARAMS.count));
+  const [minSec, setMinSec] = useState(String(AUTO_CUT_DEFAULT_PARAMS.minSec));
+  const [maxSec, setMaxSec] = useState(String(AUTO_CUT_DEFAULT_PARAMS.maxSec));
+  const [request, setRequest] = useState("");
+
+  const [aspect, setAspect] = useState<AutoCutAspect>("9:16");
+  const [layout, setLayout] = useState<AutoCutLayout>("auto");
+  const [background, setBackground] = useState<AutoCutBackground>("gemini");
+  const [styleId, setStyleId] = useState<string | null>(null);
+
+  const [transcribe, setTranscribe] = useState(true);
+  const [autoEdit, setAutoEdit] = useState(false);
+
+  const [brief, setBrief] = useState<Brief>(DEFAULT_BRIEF);
+  const [briefOpen, setBriefOpen] = useState(false);
+
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [createdId, setCreatedId] = useState<string | null>(null);
+
+  const loadSources = useCallback(async () => {
+    try {
+      setSources(await getAutoCutSources());
+      setSourcesError(null);
+    } catch (e) {
+      setSourcesError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    loadSources();
+
+    setCreatedId(null);
+    setCreateError(null);
+  }, [open, loadSources]);
+
+  useUploadEvents((e) => {
+    if (!uploading || e.projectId) return;
+    if (e.done) {
+      setUploadPct(null);
+      return;
+    }
+    const total = e.total ?? 0;
+    setUploadPct(
+      total > 0 ? Math.round(((e.received ?? 0) / total) * 100) : null
+    );
+  });
+
+  async function onPickFile(list: FileList | null) {
+    const file = list?.[0];
+    if (!file || uploading) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadPct(0);
+    try {
+      const info = await uploadAsset(file, "imports");
+      await loadSources();
+
+      setSourceRel(info.relPath);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploading(false);
+      setUploadPct(null);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
+  const transcribeLocked = mode === "ai" || mode === "prompt";
+  useEffect(() => {
+    if (transcribeLocked) setTranscribe(true);
+  }, [transcribeLocked]);
+
+  const requestMissing = mode === "prompt" && request.trim().length === 0;
+  const canCreate = sourceRel !== "" && !requestMissing && !uploading;
+
+  function buildParams(): AutoCutParams {
+    if (mode === "time") {
+      return {
+        minutes: Number(minutes) || AUTO_CUT_DEFAULT_PARAMS.minutes,
+        overlapSec: Number(overlapSec) || 0,
+      };
+    }
+    const common = {
+      count: Number(count) || AUTO_CUT_DEFAULT_PARAMS.count,
+      minSec: Number(minSec) || AUTO_CUT_DEFAULT_PARAMS.minSec,
+      maxSec: Number(maxSec) || AUTO_CUT_DEFAULT_PARAMS.maxSec,
+    };
+    return mode === "prompt"
+      ? { ...common, request: request.trim() }
+      : common;
+  }
+
+  async function onCreate() {
+    if (!canCreate || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    let sessionId = createdId;
+    try {
+      if (!sessionId) {
+        const session = await createAutoCut({
+          ...(name.trim() ? { name: name.trim() } : {}),
+          sourceRel,
+          mode,
+          params: buildParams(),
+          output: { aspect, layout, background, styleId },
+          transcribe,
+          autoEdit,
+          brief: briefPayload(brief),
+        });
+        sessionId = session.id;
+        setCreatedId(sessionId);
+      }
+
+      await planAutoCut(sessionId);
+      onCreated(sessionId);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const selectedSource = sources?.find((f) => f.relPath === sourceRel) ?? null;
+
+  const reframing = aspect !== "keep";
+
+  const needBackground = reframing && layout !== "crop";
+
+  const yesNo = (v: boolean) => (v ? t("common.yes") : t("common.no"));
+  const briefSummary = [
+    `${t("brief.subtitles")}: ${yesNo(brief.subtitles)}`,
+    `${t("brief.key-layout")}: ${yesNo(brief.keyLayoutEnabled)}`,
+    `Sound effect: ${t(SFX_MODE_LABEL[brief.sfxMode])}`,
+    `${t("brief.music-label")}: ${t(MUSIC_MODE_LABEL[brief.musicMode])}`,
+  ].join(" · ");
+
+  function close() {
+    if (!creating) onClose();
+  }
+
+  return (
+
+    <Modal
+      title={t("autocut.create-title")}
+      open={open}
+      onClose={close}
+      footer={
+        <>
+          <Button variant="secondary" disabled={creating} onClick={close}>
+            {t("common.cancel")}
+          </Button>
+          {createdId && createError ? (
+            <Button onClick={() => onCreated(createdId)}>
+              {t("autocut.open-session")}
+            </Button>
+          ) : null}
+          <Button disabled={!canCreate || creating} onClick={onCreate}>
+            {creating ? (
+              <Loader2 size={15} strokeWidth={2} className="animate-spin" />
+            ) : (
+              <Scissors size={15} strokeWidth={2} />
+            )}
+            {creating ? t("autocut.creating") : t("autocut.create")}
+          </Button>
+        </>
+      }
+    >
+      {createError && (
+        <ErrorBanner
+          message={
+            createdId ? t("autocut.plan-error-created") : t("autocut.create-error")
+          }
+          detail={createError}
+        />
+      )}
+
+      <Panel title={t("autocut.source")}>
+        {sourcesError && (
+          <ErrorBanner message={t("autocut.sources-error")} detail={sourcesError} />
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <select
+            className="input min-w-[240px] flex-1"
+            aria-label={t("autocut.source")}
+            value={sourceRel}
+            disabled={creating}
+            onChange={(e) => setSourceRel(e.target.value)}
+          >
+            <option value="">
+              {sources && sources.length === 0
+                ? t("autocut.source-none")
+                : t("autocut.source-pick")}
+            </option>
+            {(sources ?? []).map((f) => (
+              <option key={f.relPath} value={f.relPath}>
+                {f.name} - {formatBytes(f.size)}
+              </option>
+            ))}
+          </select>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => onPickFile(e.target.files)}
+          />
+          <Button
+            variant="secondary"
+            disabled={uploading || creating}
+            onClick={() => fileInput.current?.click()}
+          >
+            {uploading ? (
+              <Loader2 size={15} strokeWidth={2} className="animate-spin" />
+            ) : (
+              <Upload size={15} strokeWidth={2} />
+            )}
+            {uploading ? t("autocut.uploading") : t("autocut.upload")}
+          </Button>
+        </div>
+        {uploading &&
+          (uploadPct === null ? (
+            <div className="progress-indeterminate" />
+          ) : (
+            <ProgressBar progress={uploadPct} />
+          ))}
+        {uploadError && (
+          <ErrorBanner message={t("autocut.upload-error")} detail={uploadError} />
+        )}
+
+        {selectedSource && (
+          <p className="text-meta text-[var(--text-muted)]">
+            {selectedSource.relPath} · {formatBytes(selectedSource.size)}
+          </p>
+        )}
+      </Panel>
+
+      <Field label={t("autocut.name")} htmlFor="autocut-name">
+        <input
+          id="autocut-name"
+          className="input"
+          value={name}
+          disabled={creating}
+          placeholder={t("autocut.name-placeholder")}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </Field>
+
+      <Panel
+        title={t("autocut.how")}
+        actions={
+          <InfoHint
+            titleKey="help.autocut-mode.title"
+            bodyKey="help.autocut-mode.body"
+          />
+        }
+      >
+        <OptionCardGroup label={t("autocut.how")}>
+          {MODES.map((m) => (
+            <OptionCard
+              key={m}
+              selected={mode === m}
+              disabled={creating}
+              title={t(MODE_LABEL[m])}
+              description={t(MODE_DESC[m])}
+              onSelect={() => setMode(m)}
+            />
+          ))}
+        </OptionCardGroup>
+
+        {mode === "time" ? (
+          <div className="flex flex-wrap items-start gap-2">
+            <NumField
+              id="autocut-minutes"
+              label={t("autocut.minutes")}
+              value={minutes}
+              min={1}
+              disabled={creating}
+              onChange={setMinutes}
+            />
+            <NumField
+              id="autocut-overlap"
+              label={t("autocut.overlap")}
+              value={overlapSec}
+              min={0}
+              disabled={creating}
+              onChange={setOverlapSec}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {mode === "prompt" && (
+              <Field
+                label={t("autocut.request")}
+                htmlFor="autocut-request"
+                error={requestMissing ? t("autocut.request-required") : null}
+              >
+                <textarea
+                  id="autocut-request"
+                  className="input"
+                  rows={2}
+                  value={request}
+                  disabled={creating}
+                  placeholder={t("autocut.request-placeholder")}
+                  onChange={(e) => setRequest(e.target.value)}
+                />
+              </Field>
+            )}
+            <div className="flex flex-wrap items-start gap-2">
+              <NumField
+                id="autocut-count"
+                label={t("autocut.count")}
+                value={count}
+                min={1}
+                disabled={creating}
+                onChange={setCount}
+                width="w-24"
+              />
+              <NumField
+                id="autocut-min-sec"
+                label={t("autocut.min-sec")}
+                value={minSec}
+                min={5}
+                disabled={creating}
+                onChange={setMinSec}
+              />
+              <NumField
+                id="autocut-max-sec"
+                label={t("autocut.max-sec")}
+                value={maxSec}
+                min={6}
+                disabled={creating}
+                onChange={setMaxSec}
+              />
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title={t("autocut.aspect")}
+        actions={
+          <InfoHint
+            titleKey="help.autocut-aspect.title"
+            bodyKey="help.autocut-aspect.body"
+          />
+        }
+      >
+
+        <OptionCardGroup
+          label={t("autocut.aspect")}
+          className="grid-cols-[repeat(auto-fit,minmax(120px,1fr))]"
+        >
+          {ASPECTS.map((a) => {
+            const size = aspectSize(a);
+            return (
+              <OptionCard
+                key={a}
+                selected={aspect === a}
+                disabled={creating}
+                title={a === "keep" ? t("autocut.aspect.keep") : a}
+                description={
+                  size
+                    ? `${size.width}x${size.height}`
+                    : t("autocut.aspect.keep-size")
+                }
+                onSelect={() => setAspect(a)}
+              />
+            );
+          })}
+        </OptionCardGroup>
+        {!reframing && (
+          <p className="text-sm text-[var(--text-muted)]">
+            {t("autocut.keep-note")}
+          </p>
+        )}
+      </Panel>
+
+      {reframing && (
+        <>
+          <Panel
+            title={t("autocut.layout")}
+            actions={
+              <InfoHint
+                titleKey="help.autocut-layout.title"
+                bodyKey="help.autocut-layout.body"
+              />
+            }
+          >
+            <OptionCardGroup label={t("autocut.layout")}>
+              {LAYOUTS.map((l) => (
+                <OptionCard
+                  key={l}
+                  selected={layout === l}
+                  disabled={creating}
+                  title={t(LAYOUT_LABEL[l])}
+                  description={t(LAYOUT_DESC[l])}
+                  onSelect={() => setLayout(l)}
+                />
+              ))}
+            </OptionCardGroup>
+          </Panel>
+
+          {needBackground && (
+            <Panel
+              title={t("autocut.background")}
+              actions={
+                <InfoHint
+                  titleKey="help.autocut-background.title"
+                  bodyKey="help.autocut-background.body"
+                />
+              }
+            >
+              <OptionCardGroup label={t("autocut.background")}>
+                {BACKGROUNDS.map((b) => (
+                  <OptionCard
+                    key={b}
+                    selected={background === b}
+                    disabled={creating}
+                    title={t(BACKGROUND_LABEL[b])}
+                    description={t(BACKGROUND_DESC[b])}
+                    onSelect={() => setBackground(b)}
+                  />
+                ))}
+              </OptionCardGroup>
+
+              <Field label={t("autocut.style")} htmlFor="autocut-style">
+                <StyleSelect
+                  id="autocut-style"
+                  value={styleId}
+                  disabled={creating}
+                  onChange={setStyleId}
+                />
+              </Field>
+            </Panel>
+          )}
+        </>
+      )}
+
+      <Panel title={t("autocut.options")}>
+
+        <CheckboxField
+          id="autocut-transcribe"
+          label={t("autocut.transcribe")}
+          hint={
+            transcribeLocked
+              ? t("autocut.transcribe-locked")
+              : t("autocut.transcribe-hint")
+          }
+          hintKeys={{
+            titleKey: "help.autocut-transcribe.title",
+            bodyKey: "help.autocut-transcribe.body",
+          }}
+          checked={transcribe}
+          disabled={transcribeLocked || creating}
+          onChange={setTranscribe}
+        />
+        <CheckboxField
+          id="autocut-auto-edit"
+          label={t("autocut.auto-edit")}
+          hint={t("autocut.auto-edit-hint")}
+          hintKeys={{
+            titleKey: "help.autocut-autoedit.title",
+            bodyKey: "help.autocut-autoedit.body",
+          }}
+          checked={autoEdit}
+          disabled={creating}
+          onChange={setAutoEdit}
+        />
+      </Panel>
+
+      <div className="flex min-w-0 flex-col rounded-[var(--radius)] border border-[var(--border)]">
+        <button
+          type="button"
+          aria-expanded={briefOpen}
+          onClick={() => setBriefOpen((v) => !v)}
+          className="flex w-full items-start gap-2 rounded-[var(--radius)] p-3 text-left transition-colors duration-150 hover:bg-[var(--border)]"
+        >
+          {briefOpen ? (
+            <ChevronDown
+              size={15}
+              strokeWidth={2}
+              className="mt-1 shrink-0 text-[var(--text-muted)]"
+            />
+          ) : (
+            <ChevronRight
+              size={15}
+              strokeWidth={2}
+              className="mt-1 shrink-0 text-[var(--text-muted)]"
+            />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">
+              {t("autocut.brief-title")}
+            </span>
+            <span className="block truncate text-meta text-[var(--text-muted)]">
+              {briefOpen ? t("autocut.brief-hint") : briefSummary}
+            </span>
+          </span>
+        </button>
+        {briefOpen && (
+          <div className="border-t border-[var(--border)] p-3">
+            <BriefFields
+              value={brief}
+              onChange={(p) => setBrief((b) => ({ ...b, ...p }))}
+
+              show={{ styleId: false, sourceDescription: false }}
+              disabled={creating}
+            />
+          </div>
+        )}
+      </div>
+
+      {selectedSource?.relPath && mode === "time" && (
+        <p className="text-meta text-[var(--text-muted)]">
+          {tf("autocut.time-hint", { minutes: clock(Number(minutes) * 60 || 0) })}
+        </p>
+      )}
+    </Modal>
+  );
+}

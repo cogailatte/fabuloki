@@ -1,0 +1,152 @@
+[
+  {
+    "id": "01_orbit",
+    "name": "Orbit",
+    "motion": "Chữ hoặc thẻ chuyển động theo quỹ đạo quanh nhân vật; dùng cho một ý trung tâm."
+  },
+  {
+    "id": "02_couchwall",
+    "name": "Couchwall",
+    "motion": "Nhiều khung hình xếp thành bức tường; dùng khi trình bày nhiều ví dụ."
+  },
+  {
+    "id": "03_uiworld",
+    "name": "Uiworld",
+    "motion": "Bố cục cửa sổ giao diện; dùng khi giải thích thao tác hay công cụ."
+  },
+  {
+    "id": "04_framebreak",
+    "name": "Framebreak",
+    "motion": "Đồ họa vượt ra ngoài khung; dùng để nhấn chủ thể."
+  },
+  {
+    "id": "05_digitalzoom",
+    "name": "Digitalzoom",
+    "motion": "Phóng vào một vùng hình; dùng khi cần nhìn chi tiết."
+  },
+  {
+    "id": "06_phonemockup",
+    "name": "Phonemockup",
+    "motion": "Khung điện thoại chứa nội dung thật; dùng để giới thiệu ứng dụng."
+  },
+  {
+    "id": "07_checklist",
+    "name": "Checklist",
+    "motion": "Danh sách có dấu tích xuất hiện theo từng ý nói."
+  },
+  {
+    "id": "08_headlinewall",
+    "name": "Headlinewall",
+    "motion": "Tường tiêu đề và từ khóa; dùng cho câu mở đầu hay thông điệp."
+  },
+  {
+    "id": "09_zoomthrough",
+    "name": "Zoomthrough",
+    "motion": "Chuyển cảnh xuyên qua khung; dùng để đổi ý lớn."
+  },
+  {
+    "id": "10_chartgrow",
+    "name": "Chartgrow",
+    "motion": "Biểu đồ tăng trưởng theo số liệu thật; bỏ qua khi không có dữ liệu."
+  },
+  {
+    "id": "11_pullback",
+    "name": "Pullback",
+    "motion": "Máy quay mô phỏng lùi để lộ bố cục tổng thể."
+  },
+  {
+    "id": "12_greenscreen",
+    "name": "Greenscreen",
+    "motion": "Tách người khỏi nền; chỉ chọn nếu có công cụ và tách nền đạt chất lượng."
+  },
+  {
+    "id": "13_papercut",
+    "name": "Papercut",
+    "motion": "Lớp giấy cắt chuyển động; dùng minh họa nhiều tầng."
+  },
+  {
+    "id": "14_doodle",
+    "name": "Doodle",
+    "motion": "Nét vẽ tay nhấn vùng hay ý quan trọng."
+  },
+  {
+    "id": "15_vertigo",
+    "name": "Vertigo",
+    "motion": "Đổi tỷ lệ nền và chủ thể; dùng nhấn cảnh, hạn chế gây chóng mặt."
+  },
+  {
+    "id": "16_cover",
+    "name": "Cover",
+    "motion": "Bố cục bìa với chữ lớn và nhân vật."
+  },
+  {
+    "id": "17_glass",
+    "name": "Glass",
+    "motion": "Thẻ kính trong; dùng nhãn hay dữ liệu ngắn."
+  },
+  {
+    "id": "18_timeline",
+    "name": "Timeline",
+    "motion": "Các mốc thời gian xuất hiện theo trình tự."
+  },
+  {
+    "id": "19_burn",
+    "name": "Burn",
+    "motion": "Chuyển cảnh giấy cháy; chỉ dùng nếu phù hợp nội dung và không nháy sáng."
+  },
+  {
+    "id": "20_handnote",
+    "name": "Handnote",
+    "motion": "Ghi chú viết tay; dùng lời nhắc hoặc ý ngắn."
+  },
+  {
+    "id": "21_floatcards",
+    "name": "Floatcards",
+    "motion": "Thẻ nổi vào lần lượt theo lời nói."
+  },
+  {
+    "id": "22_labelstrike",
+    "name": "Labelstrike",
+    "motion": "Nhãn chữ gạch hoặc đánh dấu từ khóa."
+  },
+  {
+    "id": "23_receipts",
+    "name": "Receipts",
+    "motion": "Thẻ hóa đơn; dùng liệt kê chi phí có số liệu thật."
+  },
+  {
+    "id": "24_commentcta",
+    "name": "Commentcta",
+    "motion": "Lời kêu gọi bình luận với nội dung lấy từ lời nói."
+  },
+  {
+    "id": "25_wordpunch",
+    "name": "Wordpunch",
+    "motion": "Từ khóa bật nhấn đúng nhịp nói."
+  },
+  {
+    "id": "26_cardburst",
+    "name": "Cardburst",
+    "motion": "Các thẻ bung mở; dùng liệt kê nhiều ý."
+  },
+  {
+    "id": "27_chatwindow",
+    "name": "Chatwindow",
+    "motion": "Cửa sổ trò chuyện hiện từng dòng."
+  },
+  {
+    "id": "28_reaction",
+    "name": "Reaction",
+    "motion": "Bố cục phản ứng; chỉ dùng tài nguyên người dùng cung cấp."
+  },
+  {
+    "id": "29_filmstrip",
+    "name": "Filmstrip",
+    "motion": "Dải phim chứa ảnh/video thật."
+  },
+  {
+    "id": "30_boardscroll",
+    "name": "Boardscroll",
+    "motion": "Bảng cuộn qua từng ý; dùng trình bày quy trình dài."
+  }
+]

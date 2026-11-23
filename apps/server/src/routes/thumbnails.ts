@@ -1,0 +1,235 @@
+import fs from "node:fs";
+import path from "node:path";
+import { Router } from "express";
+import { paths, repoRoot } from "../config.js";
+import { ffmpegSafeArgs } from "../ffmpegSafe.js";
+import { generateImage, isImageProviderChoice, resolveProviders } from "../imageProviders/index.js";
+import {
+  briefOf,
+  listProjectAssets,
+  normOutput,
+  projectDirOf,
+  projectExists,
+  readMeta,
+  writeMeta,
+} from "../meta.js";
+import { remotionGlArgs } from "../renderSettings.js";
+import { getStyle, styleExists } from "../styles.js";
+import { HttpError, ensureDir, execFileCapture, remotionCli } from "../util.js";
+import { IMAGE_ASPECTS, type ImageAspect } from "../imageMeta.js";
+
+const router = Router();
+
+router.post("/:id/thumbnail", async (req, res) => {
+  const id = req.params.id;
+  if (!projectExists(id)) {
+    throw new HttpError(404, "PROJECT_NOT_FOUND", `Không tìm thấy video project "${id}"`);
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) {
+    throw new HttpError(400, "TITLE_REQUIRED", "Thiếu title cho thumbnail");
+  }
+  const frameAt =
+    typeof body.frameAt === "number" && Number.isFinite(body.frameAt) && body.frameAt >= 0
+      ? body.frameAt
+      : 1;
+  const bgPrompt = typeof body.bgPrompt === "string" ? body.bgPrompt.trim() : "";
+  if ("styleId" in body && body.styleId !== null && typeof body.styleId !== "string") {
+    throw new HttpError(400, "INVALID_STYLE_ID", "styleId phải là string hoặc null");
+  }
+  const styleId = typeof body.styleId === "string" ? body.styleId.trim() : "";
+  if (styleId && !styleExists(styleId)) {
+    throw new HttpError(404, "STYLE_NOT_FOUND", `Không tìm thấy style "${styleId}"`);
+  }
+
+  const meta = readMeta(id);
+  const projectDir = projectDirOf(id);
+
+  const resolveInRepo = (rel: string, what: string): string => {
+    const abs = path.resolve(repoRoot, rel);
+    if (!abs.startsWith(path.resolve(repoRoot) + path.sep)) {
+      throw new HttpError(400, "PATH_OUTSIDE_REPO", `${what} "${rel}" nằm ngoài repo`);
+    }
+    return abs;
+  };
+
+  let videoAbs: string | null = null;
+  const sourceRel = typeof body.sourceRel === "string" ? body.sourceRel.trim() : "";
+  if (sourceRel) {
+    const abs = resolveInRepo(sourceRel, "sourceRel");
+
+    const inside = (dir: string): boolean => abs.startsWith(path.resolve(dir) + path.sep);
+    if (!inside(projectDir) && !inside(paths.outputsDir)) {
+      throw new HttpError(400, "PATH_OUTSIDE_PROJECT", `sourceRel "${sourceRel}" phải nằm trong project hoặc outputs/`);
+    }
+    if (!fs.existsSync(abs)) {
+      throw new HttpError(404, "SOURCE_NOT_FOUND", `Không thấy video nguồn "${sourceRel}"`);
+    }
+    videoAbs = abs;
+  } else {
+    const output = normOutput(meta.output);
+    if (output) {
+      const abs = resolveInRepo(output, "output");
+      if (fs.existsSync(abs)) videoAbs = abs;
+    }
+    if (!videoAbs) {
+      const firstVideo = listProjectAssets(id).find((f) => f.kind === "video");
+      if (firstVideo) videoAbs = path.join(repoRoot, firstVideo.relPath);
+    }
+  }
+  if (!videoAbs) {
+    throw new HttpError(
+      400,
+      "NO_SOURCE_VIDEO",
+      "Project chưa có video để cắt frame (chưa có output final lẫn video asset) - truyền sourceRel hoặc render final trước",
+    );
+  }
+
+  const rendersDir = path.join(projectDir, "renders");
+  ensureDir(rendersDir);
+  const frameAbs = path.join(rendersDir, "thumb-frame.png");
+
+  fs.rmSync(frameAbs, { force: true });
+  try {
+    await execFileCapture(
+      "ffmpeg",
+      ffmpegSafeArgs(["-y", "-ss", String(frameAt), "-i", videoAbs, "-frames:v", "1", "-q:v", "2", frameAbs]),
+      { timeoutMs: 60_000 },
+    );
+  } catch (err) {
+    throw new HttpError(
+      500,
+      "FRAME_FAILED",
+      `ffmpeg không cắt được frame tại giây ${frameAt}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!fs.existsSync(frameAbs)) {
+    throw new HttpError(
+      500,
+      "FRAME_FAILED",
+      `ffmpeg chạy xong nhưng không có frame - frameAt=${frameAt}s có thể vượt quá thời lượng video`,
+    );
+  }
+
+  const design = getStyle(styleId || briefOf(meta).styleId || null);
+
+  const ratio = Number(meta.width) / Number(meta.height);
+  const ratioOf = (a: ImageAspect): number => {
+    const [w, h] = a.split(":").map(Number);
+    return w / h;
+  };
+  const aspect: ImageAspect =
+    Number.isFinite(ratio) && ratio > 0
+      ? IMAGE_ASPECTS.reduce((best, a) =>
+          Math.abs(ratioOf(a) - ratio) < Math.abs(ratioOf(best) - ratio) ? a : best,
+        )
+      : "9:16";
+  const bgAbs = path.join(rendersDir, "thumb-bg.png");
+  let hasBg = false;
+  const provider = isImageProviderChoice(body.provider) ? body.provider : undefined;
+  if (resolveProviders(provider, null).chain.length > 0) {
+    try {
+      await generateImage({
+        prompt: bgPrompt || `background for a video thumbnail about: ${title}`,
+        kind: "concept",
+        aspect,
+        design,
+        allowText: false,
+        outFile: bgAbs,
+        usageProjectId: id,
+        provider,
+      });
+      hasBg = true;
+    } catch (err) {
+      console.warn(
+        `[thumbnail] Tạo nền AI lỗi - dùng nền gradient từ style: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  const stagingId = `thumb-${id}`;
+  const stagingAbs = path.join(paths.stagingDir, stagingId);
+  fs.rmSync(stagingAbs, { recursive: true, force: true });
+  ensureDir(stagingAbs);
+
+  const stage = (srcAbs: string, prefix: string): string => {
+    const resolved = path.resolve(srcAbs);
+    if (!resolved.startsWith(path.resolve(repoRoot) + path.sep)) {
+      throw new HttpError(400, "PATH_OUTSIDE_REPO", `Đường dẫn "${srcAbs}" nằm ngoài repo - từ chối stage`);
+    }
+    const name = prefix + path.basename(srcAbs);
+    const dstAbs = path.join(stagingAbs, name);
+    try {
+      fs.linkSync(resolved, dstAbs);
+    } catch {
+      fs.copyFileSync(resolved, dstAbs);
+    }
+    return `staging/${stagingId}/${name}`;
+  };
+
+  const stageOptional = (rel: string | null, prefix: string): string | null => {
+    if (!rel) return null;
+    const abs = path.join(repoRoot, rel);
+    if (!fs.existsSync(abs)) return null;
+    return stage(abs, prefix);
+  };
+
+  const props = {
+    aspect,
+    background: hasBg ? stage(bgAbs, "bg-") : null,
+    frame: stage(frameAbs, "frame-"),
+    title,
+    design: {
+      colors: design.colors,
+      fonts: design.fonts,
+      fontFiles: {
+        heading: stageOptional(design.fontFiles.heading, "font-h-"),
+        body: stageOptional(design.fontFiles.body, "font-b-"),
+      },
+      effects: design.effects,
+      logoFile: stageOptional(design.logoPath, "logo-"),
+      brandName: design.name,
+    },
+  };
+  const propsAbs = path.join(rendersDir, "thumb-props.json");
+  fs.writeFileSync(propsAbs, JSON.stringify(props, null, 2) + "\n", "utf8");
+
+  const outAbs = path.join(projectDir, "thumbnail.png");
+  try {
+    await execFileCapture(
+      process.execPath,
+      [
+        remotionCli(),
+        "still",
+        "Thumbnail",
+        `--props=${propsAbs}`,
+        `--output=${outAbs}`,
+        ...remotionGlArgs(),
+      ],
+      { cwd: paths.remotionDir, timeoutMs: 300_000 },
+    );
+  } catch (err) {
+    throw new HttpError(
+      500,
+      "STILL_FAILED",
+      `Remotion still Thumbnail thất bại: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  } finally {
+
+    fs.rmSync(stagingAbs, { recursive: true, force: true });
+  }
+  if (!fs.existsSync(outAbs)) {
+    throw new HttpError(500, "STILL_FAILED", "Remotion still xong nhưng không thấy thumbnail.png");
+  }
+
+  writeMeta(id, readMeta(id));
+
+  res.status(201).json({
+    file: "thumbnail.png",
+    relPath: `video-projects/${id}/thumbnail.png`,
+  });
+});
+
+export default router;

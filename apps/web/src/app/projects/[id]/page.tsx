@@ -1,0 +1,1898 @@
+"use client";
+
+import { QuizzyProjectSelect } from "@/components/QuizzyProjectSelect";
+import {
+  ArrowLeft,
+  Check,
+  Clapperboard,
+  Copy,
+  ExternalLink,
+  Film,
+  Maximize2,
+  FileQuestion,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  MessageSquare,
+  Minus,
+  MoreHorizontal,
+  Music,
+  Play,
+  Plus,
+  Sparkles,
+  SquarePen,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  cleanProjectJunk,
+  createJob,
+  createThumbnail,
+  deleteProject,
+  getChatSessions,
+  getJobs,
+  getProject,
+  getProjectJunk,
+  isVideoProjectJob,
+  mediaUrl,
+  renameProject,
+  startEditorRender,
+  startProjectEdit,
+  updateBrief,
+  updateProjectTags,
+  type AgentEffort,
+  type Brief,
+  type ChatSession,
+  type FileInfo,
+  type FinishMode,
+  type Job,
+  type JobType,
+  type ProjectDetail,
+  type SceneMeta,
+} from "@/lib/api";
+import { useAgentEvents, useEvents, useJobEvents } from "@/lib/useEvents";
+import { Card } from "@/components/Card";
+import { Badge, ProjectBadge } from "@/components/Badge";
+import { Banner } from "@/components/Banner";
+import { Button } from "@/components/Button";
+import { Field } from "@/components/Field";
+import { IconButton } from "@/components/IconButton";
+import { Panel } from "@/components/Panel";
+import { Segmented } from "@/components/Segmented";
+import { Skeleton } from "@/components/Skeleton";
+import { ChatThread } from "@/components/ChatThread";
+import { CloneProjectModal } from "@/components/CloneProjectModal";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
+import {
+  AiModelBlock,
+  DEFAULT_EFFORT,
+  DEFAULT_MODEL,
+} from "@/components/ModelPicker";
+import { EditableTitle } from "@/components/EditableTitle";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { InfoHint } from "@/components/InfoHint";
+import {
+  MediaPreviewModal,
+  RevealButton,
+  canPreview,
+} from "@/components/MediaPreviewModal";
+import { Modal } from "@/components/Modal";
+import { PageHeader } from "@/components/PageHeader";
+import { deriveStage, PipelineTimeline } from "@/components/PipelineTimeline";
+import { ShellRightPanel } from "@/components/Shell";
+import {
+  BriefFields,
+  DEFAULT_BRIEF,
+  SFX_MODE_LABEL,
+} from "@/components/BriefFields";
+import { ProjectAssetsCard } from "@/components/ProjectAssetsCard";
+import { ProjectSourceCard } from "@/components/ProjectSourceCard";
+import { ProjectAutoTrimCard } from "@/components/ProjectAutoTrimCard";
+import { ProjectClipsCard } from "@/components/ProjectClipsCard";
+import { ProjectReviewCard } from "@/components/ProjectReviewCard";
+import { ProjectPublishCard } from "@/components/ProjectPublishCard";
+import { ProjectQcCard } from "@/components/ProjectQcCard";
+import { styleDisplayName, useStyles } from "@/components/StyleSelect";
+import {
+  OutputBlock,
+  useCollapseGroup,
+  Workspace,
+  WorkspaceBlock,
+  WorkspaceColumn,
+  type WorkspaceStatus,
+} from "@/components/Workspace";
+import { formatBytes, formatRelative, isRecentFile } from "@/lib/format";
+import {
+  SessionStatusBadge,
+  sessionStatusLabel,
+} from "@/components/SessionStatusBadge";
+import { useT } from "@/lib/i18n";
+
+const BRIEF_DEBOUNCE_MS = 700;
+
+const PROJECT_BLOCKS = [
+  "brief",
+  "action",
+  "scenes",
+  "renders",
+  "thumbnail",
+] as const;
+
+const MENU_ITEM_CLASS =
+  "flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-2 text-left text-meta transition-colors duration-150 hover:bg-[var(--bg-subtle)] disabled:opacity-50";
+
+function KindIcon({ kind }: { kind: FileInfo["kind"] }) {
+  const cls = "shrink-0 text-[var(--text-muted)]";
+  switch (kind) {
+    case "video":
+      return <Film size={15} strokeWidth={1.75} className={cls} />;
+    case "audio":
+      return <Music size={15} strokeWidth={1.75} className={cls} />;
+    case "image":
+      return <ImageIcon size={15} strokeWidth={1.75} className={cls} />;
+    default:
+      return <FileText size={15} strokeWidth={1.75} className={cls} />;
+  }
+}
+
+function sceneRenderFile(scene: SceneMeta, renders: FileInfo[]): FileInfo | null {
+  return (
+    renders.find((f) => f.name === `${scene.id}.mp4`) ??
+    renders.find((f) => f.name === `${scene.id}.draft.mp4`) ??
+    null
+  );
+}
+
+function FileTable({ files }: { files: FileInfo[] }) {
+  const { t } = useT();
+  const [preview, setPreview] = useState<FileInfo | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
+
+  if (files.length === 0) {
+    return (
+      <EmptyState icon={FileQuestion} description={t("project.no-files")} />
+    );
+  }
+  return (
+    <>
+      {revealError && (
+        <div className="mb-3">
+          <Banner
+            tone="danger"
+            message={
+              <span className="[overflow-wrap:anywhere]">{revealError}</span>
+            }
+          />
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+      <table className="table min-w-[420px]">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>{t("common.size")}</th>
+            <th>{t("common.modified")}</th>
+            <th aria-label={t("project.actions-aria")} />
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => {
+            const previewable = canPreview(f.kind);
+            return (
+              <tr
+                key={f.relPath}
+                className={previewable ? "row-click" : undefined}
+                onClick={previewable ? () => setPreview(f) : undefined}
+              >
+                <td>
+                  <span className="flex items-center gap-2">
+                    <KindIcon kind={f.kind} />
+                    {f.name}
+
+                    {isRecentFile(f.mtime) && (
+                      <Badge tone="running" label={t("common.new")} dot={false} />
+                    )}
+                  </span>
+                </td>
+                <td className="text-[var(--text-muted)]">{formatBytes(f.size)}</td>
+                <td className="text-[var(--text-muted)]">{formatRelative(f.mtime)}</td>
+                <td className="text-right">
+                  <RevealButton
+                    relPath={f.relPath}
+                    onError={setRevealError}
+                    className="ml-auto"
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      <MediaPreviewModal file={preview} onClose={() => setPreview(null)} />
+    </>
+  );
+}
+
+function ThumbnailBody({
+  projectId,
+  projectName,
+  thumbnail,
+  version,
+  onChanged,
+}: {
+  projectId: string;
+  projectName?: string;
+
+  thumbnail?: string | null;
+
+  version?: string;
+  onChanged: () => void;
+}) {
+  const { t, tf } = useT();
+  const thumbRel = `video-projects/${projectId}/${thumbnail ?? "thumbnail.png"}`;
+  const thumbUrl =
+    mediaUrl(thumbRel) + (version ? `?v=${encodeURIComponent(version)}` : "");
+
+  const thumbFile: FileInfo = {
+    name: "thumbnail.png",
+    relPath: thumbRel,
+    size: 0,
+    mtime: version ?? "",
+    kind: "image",
+  };
+  const [thumbPreview, setThumbPreview] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
+
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [frameAt, setFrameAt] = useState("1");
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function openModal() {
+    setTitle(projectName ?? projectId);
+    setFrameAt("1");
+    setPrompt("");
+    setError(null);
+    setOpen(true);
+  }
+
+  async function onCreate() {
+    const name = title.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const at = Number(frameAt);
+      await createThumbnail(projectId, {
+        title: name,
+        ...(Number.isFinite(at) && at >= 0 ? { frameAt: at } : {}),
+        ...(prompt.trim() ? { bgPrompt: prompt.trim() } : {}),
+      });
+      setOpen(false);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="min-w-0 text-meta text-[var(--text-muted)]">
+          {thumbnail ? thumbnail : t("project.no-thumb")}
+        </span>
+        <Button variant="secondary" small onClick={openModal}>
+          <ImageIcon size={13} strokeWidth={2} />
+          {t("project.create-thumb")}
+        </Button>
+      </div>
+
+      {revealError && (
+        <Banner
+          tone="danger"
+          message={
+            <span className="[overflow-wrap:anywhere]">{revealError}</span>
+          }
+        />
+      )}
+
+      {thumbnail ? (
+        <div className="flex items-center gap-3">
+
+          <button
+            type="button"
+            onClick={() => setThumbPreview(true)}
+            title={t("project.view-thumb")}
+            aria-label={t("project.view-thumb")}
+            className="min-w-0 shrink"
+          >
+
+            <img
+              src={thumbUrl}
+              alt={t("project.thumb-alt")}
+              className="h-24 w-auto max-w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--bg-subtle)] object-contain transition-opacity duration-150 hover:opacity-85"
+            />
+          </button>
+          <RevealButton relPath={thumbRel} onError={setRevealError} />
+        </div>
+      ) : (
+        <EmptyState icon={ImageIcon} description={t("project.no-thumb")} />
+      )}
+
+      <MediaPreviewModal
+        file={thumbPreview ? thumbFile : null}
+        onClose={() => setThumbPreview(false)}
+      />
+
+      <Modal
+        title={t("project.create-thumb")}
+        open={open}
+        onClose={() => {
+          if (!busy) setOpen(false);
+        }}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={onCreate} disabled={busy || !title.trim()}>
+              {busy ? (
+                <>
+                  <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+                  {t("project.thumb-creating")}
+                </>
+              ) : (
+                <>
+                  <ImageIcon size={14} strokeWidth={2} />
+                  {t("project.create-thumb")}
+                </>
+              )}
+            </Button>
+          </>
+        }
+      >
+        <Field label={t("project.thumb-title")} htmlFor="thumb-title" required>
+          <input
+            id="thumb-title"
+            className="input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={t("project.thumb-title-placeholder")}
+          />
+        </Field>
+        <Field label={t("project.thumb-frame")} htmlFor="thumb-frame">
+          <input
+            id="thumb-frame"
+            className="input"
+            type="number"
+            min={0}
+            step={0.5}
+            value={frameAt}
+            onChange={(e) => setFrameAt(e.target.value)}
+          />
+        </Field>
+
+        <Field
+          label={t("project.thumb-bg-prompt")}
+          htmlFor="thumb-bg-prompt"
+          hint={t("project.thumb-desc")}
+        >
+          <input
+            id="thumb-bg-prompt"
+            className="input"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={t("project.thumb-bg-placeholder")}
+          />
+        </Field>
+        {error && (
+          <Banner tone="danger" message={tf("project.thumb-error", { error })} />
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function BriefSummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex gap-2">
+      <span className="w-32 shrink-0 text-meta text-[var(--text-muted)]">
+        {label}
+      </span>
+      <span className="min-w-0 flex-1 text-sm">{children}</span>
+    </div>
+  );
+}
+
+function YesNo({ value }: { value: boolean }) {
+  const { t } = useT();
+  return value ? (
+    <span className="inline-flex items-center gap-1 text-[var(--success)]">
+      <Check size={14} strokeWidth={2} /> {t("common.yes")}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
+      <Minus size={14} strokeWidth={2} /> {t("common.no")}
+    </span>
+  );
+}
+
+export default function ProjectDetailPage() {
+  const params = useParams<{ id: string }>();
+  const projectId = params.id;
+  const router = useRouter();
+  const { t, tf } = useT();
+
+  const { resyncTick } = useEvents();
+
+  const [project, setProject] = useState<ProjectDetail | null>(null);
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [jobNotice, setJobNotice] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [addingTag, setAddingTag] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [tagError, setTagError] = useState<string | null>(null);
+
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  const [cloneOpen, setCloneOpen] = useState(false);
+
+  const [scenePreview, setScenePreview] = useState<FileInfo | null>(null);
+  const [sceneRevealError, setSceneRevealError] = useState<string | null>(null);
+
+  const [zoomed, setZoomed] = useState(false);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [extraNotes, setExtraNotes] = useState("");
+
+  const [editModel, setEditModel] = useState(DEFAULT_MODEL);
+  const [editEffort, setEditEffort] = useState<AgentEffort>(DEFAULT_EFFORT);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const briefRef = useRef<Brief | null>(null);
+  briefRef.current = brief;
+  const briefInitialized = useRef(false);
+  const briefDirty = useRef(false);
+  const briefTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const briefInflight = useRef<Promise<string | null> | null>(null);
+  const [briefSaveError, setBriefSaveError] = useState<string | null>(null);
+  const [briefSaved, setBriefSaved] = useState(false);
+
+  const { data: stylesData } = useStyles();
+
+  const [chatSessions, setChatSessions] = useState<ChatSession[] | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const [startedOverride, setStartedOverride] = useState(false);
+
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreOpen]);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      const list = await getChatSessions(projectId);
+      list.sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setChatSessions(list);
+
+      setActiveSessionId((cur) => cur ?? list[0]?.sessionId ?? null);
+    } catch {
+
+      setChatSessions((s) => s ?? []);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions, resyncTick]);
+
+  const load = useCallback(async () => {
+    try {
+      const p = await getProject(projectId);
+      setProject(p);
+
+      if (!briefInitialized.current) {
+        briefInitialized.current = true;
+        setBrief({ ...DEFAULT_BRIEF, ...(p.brief ?? {}) });
+      }
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load, resyncTick]);
+
+  const sessionIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    sessionIdsRef.current = new Set(
+      (chatSessions ?? []).map((s) => s.sessionId)
+    );
+  }, [chatSessions]);
+
+  const lastAutoRefreshRef = useRef(0);
+  const lastSessionsRefreshRef = useRef(0);
+  useAgentEvents((e) => {
+    const belongs =
+      sessionIdsRef.current.has(e.sessionId) ||
+      e.sessionId === activeSessionId;
+    if (e.kind === "done") {
+
+      loadSessions();
+      if (belongs) load();
+      return;
+    }
+    if (!belongs) return;
+
+    const known = chatSessions?.find((s) => s.sessionId === e.sessionId);
+    if (known?.status !== "running") {
+      const now = Date.now();
+      if (now - lastSessionsRefreshRef.current >= 3000) {
+        lastSessionsRefreshRef.current = now;
+        loadSessions();
+      }
+    }
+    if (e.kind !== "tool") return;
+    const name = e.tool?.name;
+    if (name === "Write" || name === "Edit" || name === "Bash") {
+      const now = Date.now();
+      if (now - lastAutoRefreshRef.current >= 3000) {
+        lastAutoRefreshRef.current = now;
+        load();
+      }
+    }
+  });
+
+  useEffect(() => {
+    let alive = true;
+    getJobs(50, projectId)
+      .then((list) => {
+        if (alive) setJobs(list.filter((j) => isVideoProjectJob(j)));
+      })
+      .catch(() => {
+
+      });
+    return () => {
+      alive = false;
+    };
+  }, [projectId, resyncTick]);
+
+  useJobEvents((job) => {
+    if (!isVideoProjectJob(job, projectId)) return;
+    setJobs((prev) => {
+      const i = prev.findIndex((j) => j.id === job.id);
+      if (i === -1) return [job, ...prev];
+      const next = prev.slice();
+      next[i] = job;
+      return next;
+    });
+    if (["done", "failed", "canceled"].includes(job.status)) load();
+  });
+
+  const flushBrief = useCallback(async (): Promise<string | null> => {
+    if (briefTimer.current) {
+      clearTimeout(briefTimer.current);
+      briefTimer.current = null;
+    }
+
+    let prevErr: string | null = null;
+    while (briefInflight.current) prevErr = await briefInflight.current;
+    if (!briefDirty.current || !briefRef.current) return prevErr;
+    briefDirty.current = false;
+    const snapshot = briefRef.current;
+    const run = (async (): Promise<string | null> => {
+      try {
+        const saved = await updateBrief(projectId, snapshot);
+        setProject((p) => (p ? { ...p, brief: saved } : p));
+        setBriefSaveError(null);
+        setBriefSaved(true);
+        return null;
+      } catch (e) {
+        briefDirty.current = true;
+        const msg = e instanceof Error ? e.message : String(e);
+        setBriefSaveError(msg);
+        return msg;
+      }
+    })();
+    briefInflight.current = run;
+    try {
+      return await run;
+    } finally {
+      if (briefInflight.current === run) briefInflight.current = null;
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    return () => {
+      if (briefTimer.current) clearTimeout(briefTimer.current);
+      if (briefDirty.current && briefRef.current) {
+        briefDirty.current = false;
+        updateBrief(projectId, briefRef.current).catch(() => {
+
+        });
+      }
+    };
+  }, [projectId]);
+
+  function patchBrief(p: Partial<Brief>) {
+    setBrief((b) => (b ? { ...b, ...p } : b));
+    briefDirty.current = true;
+    setBriefSaved(false);
+    if (briefTimer.current) clearTimeout(briefTimer.current);
+    briefTimer.current = setTimeout(flushBrief, BRIEF_DEBOUNCE_MS);
+  }
+
+  async function onExportFinal() {
+    setSubmitting(true);
+    setJobError(null);
+    setJobNotice(null);
+    try {
+      const { jobs: queued } = await startEditorRender(projectId, "final");
+      setJobNotice(tf("project.draftReady.queued", { n: queued.length }));
+    } catch (e) {
+      setJobError(
+        tf("project.job-error", {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitJob(type: JobType, sceneId?: string) {
+    setSubmitting(true);
+    setJobError(null);
+    setJobNotice(null);
+    try {
+      const job = await createJob({ projectId, type, sceneId });
+      setJobNotice(tf("project.job-queued", { id: job.id, type }));
+    } catch (e) {
+      setJobError(
+        tf("project.job-error", {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const [cleaning, setCleaning] = useState(false);
+  async function onCleanJunk() {
+    if (cleaning) return;
+    setCleaning(true);
+    setJobError(null);
+    setJobNotice(null);
+    try {
+      const junk = await getProjectJunk(projectId);
+      if (junk.items.length === 0) {
+        setJobNotice(t("junk.none"));
+        return;
+      }
+      if (
+        !window.confirm(
+          tf("project.junk-confirm", {
+            items: junk.items.length,
+            size: formatBytes(junk.totalBytes),
+          })
+        )
+      )
+        return;
+      const result = await cleanProjectJunk(projectId);
+      setJobNotice(
+        tf("project.junk-freed", {
+          size: formatBytes(result.freedBytes),
+          items: result.deleted,
+        })
+      );
+      load();
+    } catch (e) {
+      setJobError(
+        tf("project.junk-error", {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      );
+    } finally {
+      setCleaning(false);
+    }
+  }
+
+  async function saveTags(next: string[]) {
+    if (!project) return;
+    const prev = project.tags ?? [];
+    setTagError(null);
+    setProject((p) => (p ? { ...p, tags: next } : p));
+    try {
+      const { tags } = await updateProjectTags(projectId, next);
+      setProject((p) => (p ? { ...p, tags } : p));
+    } catch (e) {
+      setProject((p) => (p ? { ...p, tags: prev } : p));
+      setTagError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function saveName(next: string) {
+    const saved = await renameProject(projectId, next);
+    setProject((p) => (p ? { ...p, name: saved.name } : p));
+  }
+
+  function addTag() {
+    const tag = tagInput.trim();
+    setTagInput("");
+    setAddingTag(false);
+    if (!tag || !project) return;
+    const cur = project.tags ?? [];
+    if (cur.includes(tag)) return;
+    saveTags([...cur, tag]);
+  }
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function onDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(projectId);
+      router.push("/projects");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+      setDeleting(false);
+    }
+  }
+
+  async function onStartEdit() {
+    if (starting) return;
+    setStarting(true);
+    setStartError(null);
+    try {
+
+      const saveErr = await flushBrief();
+      if (saveErr) {
+        setStartError(saveErr);
+        return;
+      }
+      const { sessionId } = await startProjectEdit(projectId, extraNotes, {
+        model: editModel,
+        effort: editEffort,
+      });
+
+      setEditOpen(false);
+      setActiveSessionId(sessionId);
+      setStartedOverride(true);
+      loadSessions();
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  const scenes = project?.scenes ?? [];
+  const renders = project?.files?.renders ?? [];
+  const assets = project?.files?.assets ?? [];
+
+  const briefView: Brief = brief ?? DEFAULT_BRIEF;
+
+  const activeSession =
+    chatSessions?.find((s) => s.sessionId === activeSessionId) ?? null;
+
+  const started =
+    startedOverride ||
+    (chatSessions?.length ?? 0) > 0 ||
+    project?.output != null ||
+    renders.length > 0;
+
+  const aiRunning = (chatSessions ?? []).some((s) => s.status === "running");
+  const runningJob = jobs.find((j) => j.status === "running") ?? null;
+  const busyNow = aiRunning || runningJob !== null || project?.status === "rendering";
+
+  const finishMode: FinishMode = briefView.finishMode ?? "draft";
+
+  const lastDoneAt = (type: JobType): number => {
+    let best = -Infinity;
+    for (const j of jobs) {
+      if (j.type !== type || j.status !== "done" || !j.finishedAt) continue;
+      const at = Date.parse(j.finishedAt);
+      if (Number.isFinite(at) && at > best) best = at;
+    }
+    return best;
+  };
+  const lastDraftAt = lastDoneAt("assemble-draft");
+
+  const jobQueued = jobs.some((j) => j.status === "queued");
+  const draftReady =
+    !busyNow &&
+    !jobQueued &&
+    lastDraftAt > -Infinity &&
+    lastDoneAt("assemble-final") < lastDraftAt;
+
+  const group = useCollapseGroup({
+    keys: PROJECT_BLOCKS,
+    finished: project?.status === "done",
+
+    configured: (key) =>
+      key === "brief"
+        ? briefView.notes.trim().length > 0 ||
+          briefView.sourceDescription.trim().length > 0
+        : key === "thumbnail"
+          ? Boolean(project?.thumbnail)
+          : false,
+  });
+
+  const pipelineInput = project
+    ? {
+        metaStatus: project.status,
+        hasOutput: project.output != null,
+        scenes,
+        renders,
+        jobs,
+        sessionRunning: aiRunning,
+      }
+    : null;
+  const showPipeline =
+    pipelineInput !== null && deriveStage(pipelineInput) !== null;
+
+  const output = project?.output ?? null;
+  const version = project?.updatedAt;
+
+  const versionAfter = (at: number) =>
+    at > -Infinity ? `${version ?? ""}-${at}` : version;
+  const draftVersion = versionAfter(lastDraftAt);
+  const outputUrl = output
+    ? mediaUrl(output) + (version ? `?v=${encodeURIComponent(version)}` : "")
+    : null;
+  const outputName = output ? output.split(/[\\/]/).pop() : null;
+
+  const outputFile: FileInfo | null = output
+    ? {
+        name: outputName ?? output,
+        relPath: output,
+        size: 0,
+        mtime: version ?? "",
+        kind: "video",
+      }
+    : null;
+
+  const outputStatus: WorkspaceStatus = outputUrl
+    ? "done"
+    : busyNow
+      ? "running"
+      : "idle";
+  const aspect = project ? `${project.width} / ${project.height}` : "16 / 9";
+
+  const [outputOverride, setOutputOverride] = useState<boolean | null>(null);
+  const outputCollapsed = outputOverride ?? (outputUrl === null && busyNow);
+
+  const briefSummary =
+    briefView.notes.trim().slice(0, 120) ||
+    briefView.sourceDescription.trim().slice(0, 120) ||
+    t("brief.none");
+  const actionSummary = started
+    ? tf("project.session-count", { n: chatSessions?.length ?? 0 })
+    : t("project.start-edit");
+
+  const jobPct = runningJob
+    ? Math.max(0, Math.min(100, Math.round(runningJob.progress)))
+    : null;
+  const progressText = runningJob
+    ? [`${runningJob.type} · ${jobPct}%`, runningJob.step]
+        .filter(Boolean)
+        .join(" · ")
+    : aiRunning
+      ? t("project.ai-making-ellipsis")
+      : t("workspace.output.running");
+  const outputSummary: ReactNode = busyNow ? (
+    <span className="summary-progress">
+      <span className="summary-progress-track">
+        {jobPct === null ? (
+          <span className="summary-progress-fill is-indeterminate" />
+        ) : (
+          <span
+            className="summary-progress-fill"
+            style={{ width: `${jobPct}%` }}
+          />
+        )}
+      </span>
+      <span className="summary-progress-text" title={progressText}>
+        {progressText}
+      </span>
+    </span>
+  ) : (
+    (outputName ?? t("project.no-output"))
+  );
+  const sceneSummary =
+    scenes.length > 0
+      ? tf("project.scene-count", { n: scenes.length })
+      : t("project.no-scenes-short");
+  const renderSummary =
+    renders.length > 0
+      ? tf("project.render-count", { n: renders.length })
+      : t("project.no-files");
+  const thumbSummary = project?.thumbnail ?? t("project.no-thumb");
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      <PageHeader
+        title={
+          <EditableTitle
+            value={project?.name ?? null}
+            fallback={projectId}
+            onSave={saveName}
+            onError={setRenameError}
+            editLabel={t("project.rename")}
+            emptyError={t("project.name-required")}
+            saveLabel={t("common.save")}
+            cancelLabel={t("common.cancel")}
+          />
+        }
+        subtitle={
+          project
+            ? `${project.width}×${project.height} · ${project.fps}fps · ${tf("project.updated", { time: formatRelative(project.updatedAt) })}`
+            : undefined
+        }
+        center={
+          pipelineInput && showPipeline ? (
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <PipelineTimeline {...pipelineInput} />
+              </div>
+              <InfoHint
+                titleKey="help.pipeline.title"
+                bodyKey="help.pipeline.body"
+                className="mt-px"
+              />
+            </div>
+          ) : undefined
+        }
+        actions={
+
+          <>
+            <span className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={() => router.push("/projects")}>
+                <ArrowLeft size={15} strokeWidth={2} />
+                {t("project.back")}
+              </Button>
+
+              <Button onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}/editor`)}>
+                <SquarePen size={15} strokeWidth={2} />
+                {t("project.open-editor")}
+              </Button>
+            </span>
+            <span className="flex items-center border-l border-[var(--border)] pl-2">
+
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                }}
+              >
+                <Trash2 size={15} strokeWidth={2} />
+                {t("common.delete")}
+              </Button>
+            </span>
+          </>
+        }
+      />
+
+      {project && (
+        <Card>
+          <div className="flex flex-col gap-3">
+
+            <div className="flex flex-wrap items-center gap-3">
+              <ProjectBadge status={project.status} />
+              <span className="min-w-0 text-meta text-[var(--text-muted)] [overflow-wrap:anywhere]">
+                ID: {project.id}
+              </span>
+              {project.status === "done" && group.anyCollapsed && (
+                <span className="min-w-0 text-meta text-[var(--text-muted)]">
+                  {t("workspace.done-collapsed")}
+                </span>
+              )}
+
+              <span className="ml-auto flex shrink-0 items-center gap-2">
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => setCloneOpen(true)}
+                >
+                  <Copy size={14} strokeWidth={2} />
+                  {t("clone.action")}
+                </Button>
+                <InfoHint titleKey="help.clone.title" bodyKey="help.clone.body" />
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-meta text-[var(--text-muted)]">Tag</span>
+              {(project.tags ?? []).map((tag) => (
+                <span key={tag} className="chip">
+                  {tag}
+                  <IconButton
+                    size="sm"
+                    tone="danger"
+                    label={tf("taginput.remove-aria", { tag })}
+                    className="-mr-2"
+                    onClick={() =>
+                      saveTags((project.tags ?? []).filter((x) => x !== tag))
+                    }
+                  >
+                    <X size={12} strokeWidth={2} />
+                  </IconButton>
+                </span>
+              ))}
+              {addingTag ? (
+                <input
+                  className="input w-40 rounded-full"
+                  autoFocus
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTag();
+                    } else if (e.key === "Escape") {
+                      setTagInput("");
+                      setAddingTag(false);
+                    }
+                  }}
+                  onBlur={addTag}
+                  placeholder={t("project.new-tag-placeholder")}
+                  aria-label={t("project.add-tag-aria")}
+                />
+              ) : (
+                <IconButton
+                  size="sm"
+                  label={t("project.add-tag-aria")}
+                  onClick={() => setAddingTag(true)}
+                >
+                  <Plus size={14} strokeWidth={2} />
+                </IconButton>
+              )}
+            </div>
+
+            {tagError && (
+              <Banner
+                tone="danger"
+                message={tf("project.tags-error", { error: tagError })}
+              />
+            )}
+          </div>
+        </Card>
+      )}
+
+      {renameError && (
+        <ErrorBanner message={t("project.rename-error")} detail={renameError} />
+      )}
+
+      {error && <ErrorBanner message={t("project.load-error")} detail={error} />}
+
+      {briefSaveError && (
+        <ErrorBanner
+          message={t("project.brief-save-error")}
+          detail={briefSaveError}
+        />
+      )}
+
+      <Workspace>
+
+        <WorkspaceColumn role="source" title={t("workspace.col.source")}>
+
+          <ProjectSourceCard
+            projectId={projectId}
+            brief={brief}
+            hasVideo={assets.some((f) => f.kind === "video")}
+            audioAssets={assets.filter((f) => f.kind === "audio")}
+            disabled={aiRunning}
+            onPatch={patchBrief}
+            onAssetsChanged={load}
+          />
+          <ProjectAssetsCard
+            compact={started}
+            projectId={projectId}
+            assets={assets.filter((f) => f.kind === "video" || f.kind === "image")}
+            onChanged={load}
+          />
+          {assets.some((f) => f.kind === "audio") && (
+            <ProjectAssetsCard
+              compact
+              title={t("project.sfx-title")}
+              showUpload={false}
+              projectId={projectId}
+              assets={assets.filter((f) => f.kind === "audio")}
+              onChanged={load}
+            />
+          )}
+          {assets.some((f) => f.kind === "other") && (
+            <ProjectAssetsCard
+              compact
+              title={t("project.other-title")}
+              showUpload={false}
+              projectId={projectId}
+              assets={assets.filter((f) => f.kind === "other")}
+              onChanged={load}
+            />
+          )}
+        </WorkspaceColumn>
+
+        <WorkspaceColumn role="setup" title={t("workspace.col.setup")}>
+
+          <WorkspaceBlock
+            id="project-block-brief"
+            icon={FileText}
+            collapsed={group.isCollapsed("brief")}
+            onToggle={() => group.toggle("brief")}
+            summary={briefSummary}
+            title={
+              <span className="inline-flex items-center gap-2">
+                {t("brief.title")}
+                <InfoHint
+                  titleKey="help.brief.title"
+                  bodyKey="help.brief.body"
+                  size={14}
+                />
+              </span>
+            }
+          >
+            {brief ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-meta text-[var(--text-muted)]">
+                  {briefSaved ? t("common.saved") : t("project.brief-autosave")}
+                </p>
+                <QuizzyProjectSelect value={brief} onChange={patchBrief} />
+                <BriefFields
+                  value={brief}
+                  onChange={patchBrief}
+
+                  show={{ sourceDescription: brief.sourceKind === "video", videoStyle: brief.skill !== "quizzy-edit", skill: brief.skill !== "quizzy-edit" }}
+                />
+              </div>
+            ) : (
+
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            )}
+          </WorkspaceBlock>
+
+          <WorkspaceBlock
+            id="project-block-action"
+            icon={Sparkles}
+            collapsed={group.isCollapsed("action")}
+            onToggle={() => group.toggle("action")}
+            summary={actionSummary}
+            title={t("project.card-action")}
+          >
+            <div className="flex flex-col gap-3">
+
+              {draftReady && (
+                <Panel
+                  title={t("project.draftReady.title")}
+                  actions={<Badge tone="success" label={t("project.draftReady.badge")} />}
+                >
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm text-[var(--text-muted)]">
+                      {t("project.draftReady.body")}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        small
+                        variant="secondary"
+                        onClick={() =>
+                          router.push(`/projects/${encodeURIComponent(projectId)}/editor`)
+                        }
+                      >
+                        <SquarePen size={14} strokeWidth={2} />
+                        {t("project.draftReady.open-editor")}
+                      </Button>
+                      <Button small disabled={submitting} onClick={onExportFinal}>
+                        <Play size={14} strokeWidth={2} />
+                        {t("project.draftReady.export")}
+                      </Button>
+                    </div>
+                  </div>
+                </Panel>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <span className="text-sm">{t("project.mode.label")}</span>
+                <Segmented<FinishMode>
+                  label={t("project.mode.label")}
+                  value={finishMode}
+                  disabled={!brief}
+                  onChange={(v) => patchBrief({ finishMode: v })}
+                  options={[
+                    {
+                      value: "draft",
+                      label: t("project.mode.draft"),
+                      title: t("project.mode.draft-hint"),
+                    },
+                    {
+                      value: "final",
+                      label: t("project.mode.final"),
+                      title: t("project.mode.final-hint"),
+                    },
+                  ]}
+                />
+                <span className="text-meta text-[var(--text-muted)]">
+                  {finishMode === "draft"
+                    ? t("project.mode.draft-hint")
+                    : t("project.mode.final-hint")}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    setStartError(null);
+                    setExtraNotes("");
+                    setEditOpen(true);
+                  }}
+                >
+                  <Sparkles size={15} strokeWidth={2} />
+                  {started
+                    ? t("project.start-edit-new-session")
+                    : t("project.start-edit")}
+                </Button>
+                <InfoHint
+                  titleKey="help.start-edit.title"
+                  bodyKey="help.start-edit.body"
+                  size={15}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  small
+                  disabled={submitting}
+                  onClick={() => submitJob("assemble-final")}
+                >
+                  <Play size={14} strokeWidth={2} />
+                  {t("project.render-final")}
+                </Button>
+                <InfoHint
+                  titleKey="help.render-final.title"
+                  bodyKey="help.render-final.body"
+                />
+                <div ref={moreRef} className="relative">
+                  <Button
+                    variant="secondary"
+                    small
+                    onClick={() => setMoreOpen((o) => !o)}
+                    aria-expanded={moreOpen}
+                    aria-haspopup="menu"
+                  >
+                    <MoreHorizontal size={14} strokeWidth={2} />
+                    {t("project.more")}
+                  </Button>
+
+                  {moreOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full z-50 mt-1 flex w-52 flex-col gap-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-2 shadow-[var(--shadow-card)]"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={submitting}
+                        className={MENU_ITEM_CLASS}
+                        onClick={() => {
+                          setMoreOpen(false);
+                          submitJob("scene-draft");
+                        }}
+                      >
+                        <Clapperboard
+                          size={14}
+                          strokeWidth={2}
+                          className="shrink-0 text-[var(--text-muted)]"
+                        />
+                        {t("project.menu-scene-draft")}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={submitting}
+                        className={MENU_ITEM_CLASS}
+                        onClick={() => {
+                          setMoreOpen(false);
+                          submitJob("assemble-draft");
+                        }}
+                      >
+                        <Film
+                          size={14}
+                          strokeWidth={2}
+                          className="shrink-0 text-[var(--text-muted)]"
+                        />
+                        {t("project.menu-assemble-draft")}
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={cleaning}
+                          className={`${MENU_ITEM_CLASS} min-w-0 flex-1`}
+                          onClick={() => {
+                            setMoreOpen(false);
+                            onCleanJunk();
+                          }}
+                        >
+                          <Trash2
+                            size={14}
+                            strokeWidth={2}
+                            className="shrink-0 text-[var(--text-muted)]"
+                          />
+                          {cleaning ? t("junk.cleaning") : t("junk.clean")}
+                        </button>
+                        <InfoHint
+                          titleKey="help.clean-junk.title"
+                          bodyKey="help.clean-junk.body"
+                          className="mr-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {jobNotice && (
+                <Banner
+                  tone="success"
+                  message={
+                    <span className="[overflow-wrap:anywhere]">{jobNotice}</span>
+                  }
+                />
+              )}
+              {jobError && (
+                <Banner
+                  tone="danger"
+                  message={
+                    <span className="[overflow-wrap:anywhere]">{jobError}</span>
+                  }
+                />
+              )}
+            </div>
+          </WorkspaceBlock>
+
+          <ProjectReviewCard
+            projectId={projectId}
+            output={project?.output}
+            version={draftVersion}
+            aiRunning={aiRunning}
+          />
+
+          <ProjectClipsCard
+            projectId={projectId}
+            width={project?.width}
+            height={project?.height}
+            onCreated={load}
+          />
+        </WorkspaceColumn>
+
+        <WorkspaceColumn role="output" title={t("workspace.col.output")}>
+
+          <OutputBlock
+            id="project-block-output"
+            status={outputStatus}
+            videoUrl={outputUrl}
+            progress={runningJob ? runningJob.progress : null}
+            step={runningJob?.step}
+            aspect={aspect}
+            collapsed={outputCollapsed}
+            onToggle={setOutputOverride}
+            summary={outputSummary}
+            title={
+              <span className="inline-flex items-center gap-2">
+                {t("project.video-output")}
+                <InfoHint
+                  titleKey="help.video-output.title"
+                  bodyKey="help.video-output.body"
+                  size={14}
+                />
+              </span>
+            }
+          >
+            {aiRunning && (
+              <Panel>
+                <div
+                  className="progress-indeterminate"
+                  aria-label={t("project.ai-making")}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {t("project.ai-making-ellipsis")}
+                  </span>
+                  <SessionStatusBadge status="running" />
+                </div>
+              </Panel>
+            )}
+
+            {outputUrl ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-meta text-[var(--text-muted)]">
+                  {outputName}
+                </span>
+
+                <span className="flex shrink-0 items-center gap-1">
+                  <IconButton
+                    label={t("common.zoom")}
+                    onClick={() => setZoomed(true)}
+                  >
+                    <Maximize2 size={15} strokeWidth={2} />
+                  </IconButton>
+                  <a
+                    href={outputUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="icon-btn"
+                    title={t("common.open-file")}
+                    aria-label={t("common.open-file")}
+                  >
+                    <ExternalLink size={15} strokeWidth={2} />
+                  </a>
+                </span>
+              </div>
+            ) : !busyNow ? (
+              <p className="text-sm text-[var(--text-muted)]">
+                {t("project.no-output")}
+              </p>
+            ) : null}
+          </OutputBlock>
+
+          <WorkspaceBlock
+            id="project-block-scenes"
+            icon={Clapperboard}
+            collapsed={group.isCollapsed("scenes")}
+            onToggle={() => group.toggle("scenes")}
+            summary={sceneSummary}
+            title="Scenes"
+          >
+            {sceneRevealError && (
+              <div className="mb-3">
+                <Banner
+                  tone="danger"
+                  message={
+                    <span className="[overflow-wrap:anywhere]">
+                      {sceneRevealError}
+                    </span>
+                  }
+                />
+              </div>
+            )}
+            {scenes.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="table min-w-[560px]">
+                  <thead>
+                    <tr>
+                      <th>Scene</th>
+                      <th>{t("project.col-source")}</th>
+                      <th>Duration (frames)</th>
+                      <th>{t("project.col-rendered")}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scenes.map((s) => {
+                      const renderFile = sceneRenderFile(s, renders);
+                      const rendered = renderFile !== null;
+                      return (
+                        <tr key={s.id}>
+                          <td className="font-medium">
+                            {renderFile ? (
+                              <button
+                                type="button"
+                                onClick={() => setScenePreview(renderFile)}
+                                title={tf("common.preview-aria", {
+                                  name: renderFile.name,
+                                })}
+                                className="font-medium underline-offset-2 transition-colors duration-150 hover:text-[var(--primary)] hover:underline"
+                              >
+                                {s.id}
+                              </button>
+                            ) : (
+                              s.id
+                            )}
+                          </td>
+                          <td className="text-[var(--text-muted)]">
+                            {s.src ? (
+                              <span className="chip">HyperFrames · {s.src}</span>
+                            ) : s.srcVideo ? (
+                              <span className="chip">Video · {s.srcVideo}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="text-[var(--text-muted)]">
+                            {s.durationInFrames ?? "-"}
+                          </td>
+                          <td>
+                            {rendered ? (
+                              <Check
+                                size={16}
+                                strokeWidth={2}
+                                className="text-[var(--success)]"
+                              />
+                            ) : (
+                              <Minus
+                                size={16}
+                                strokeWidth={2}
+                                className="text-[var(--text-muted)]"
+                              />
+                            )}
+                          </td>
+                          <td>
+                            <span className="flex items-center justify-end gap-2">
+                              {renderFile && (
+                                <RevealButton
+                                  relPath={renderFile.relPath}
+                                  onError={setSceneRevealError}
+                                />
+                              )}
+                              {s.src && (
+                                <Button
+                                  variant="secondary"
+                                  small
+                                  disabled={submitting}
+                                  onClick={() => submitJob("scene-draft", s.id)}
+                                >
+                                  {t("project.draft-this-scene")}
+                                </Button>
+                              )}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                icon={Clapperboard}
+                description={t("project.no-scenes")}
+              />
+            )}
+          </WorkspaceBlock>
+
+          <WorkspaceBlock
+            id="project-block-renders"
+            icon={Film}
+            collapsed={group.isCollapsed("renders")}
+            onToggle={() => group.toggle("renders")}
+            summary={renderSummary}
+            title="Renders"
+          >
+            <FileTable files={renders} />
+          </WorkspaceBlock>
+
+          <ProjectQcCard
+            projectId={projectId}
+            version={draftVersion}
+            onChanged={load}
+          />
+
+          <ProjectAutoTrimCard
+            projectId={projectId}
+            version={versionAfter(lastDoneAt("auto-trim"))}
+          />
+
+          <WorkspaceBlock
+            id="project-block-thumbnail"
+            icon={ImageIcon}
+            collapsed={group.isCollapsed("thumbnail")}
+            onToggle={() => group.toggle("thumbnail")}
+            summary={thumbSummary}
+            title={
+              <span className="inline-flex items-center gap-2">
+                Thumbnail
+                <InfoHint
+                  titleKey="help.thumbnail.title"
+                  bodyKey="help.thumbnail.body"
+                  size={14}
+                />
+              </span>
+            }
+          >
+            <ThumbnailBody
+              projectId={projectId}
+              projectName={project?.name}
+              thumbnail={project?.thumbnail}
+              version={project?.updatedAt}
+              onChanged={load}
+            />
+          </WorkspaceBlock>
+
+          <ProjectPublishCard
+            projectId={projectId}
+            version={project?.updatedAt}
+          />
+        </WorkspaceColumn>
+      </Workspace>
+
+      <ShellRightPanel title={t("project.ai-panel")}>
+        {activeSession && (
+          <div className="flex shrink-0 justify-end">
+            <SessionStatusBadge status={activeSession.status} />
+          </div>
+        )}
+
+        {chatSessions && chatSessions.length > 0 && (
+          <select
+            className="input shrink-0"
+            value={activeSessionId ?? ""}
+            onChange={(e) => setActiveSessionId(e.target.value || null)}
+            aria-label={t("project.select-session")}
+          >
+            {chatSessions.map((s) => (
+              <option key={s.sessionId} value={s.sessionId}>
+                {s.title} · {sessionStatusLabel(s.status, t)} ·{" "}
+                {formatRelative(s.updatedAt)}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {chatSessions !== null &&
+        chatSessions.length === 0 &&
+        !activeSessionId ? (
+          <div className="card flex min-h-0 flex-1 flex-col items-center justify-center">
+            <EmptyState
+              icon={MessageSquare}
+              description={t("project.no-sessions")}
+              action={
+                <Button
+                  small
+                  onClick={() => {
+                    setStartError(null);
+                    setExtraNotes("");
+                    setEditOpen(true);
+                  }}
+                >
+                  <Sparkles size={14} strokeWidth={2} />
+                  {t("project.start-edit")}
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <ChatThread
+            compact
+            providersEnabled
+            sessionId={activeSessionId}
+            projectId={projectId}
+            initialStatus={activeSession?.status}
+            session={activeSession}
+            onSessionCreated={(id) => {
+              setActiveSessionId(id);
+              loadSessions();
+            }}
+          />
+        )}
+      </ShellRightPanel>
+
+      <MediaPreviewModal
+        file={zoomed ? outputFile : null}
+        onClose={() => setZoomed(false)}
+      />
+
+      <MediaPreviewModal
+        file={scenePreview}
+        onClose={() => setScenePreview(null)}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        title={t("project.delete-title")}
+        description={
+          <>
+            {t("project.delete-desc-1")}{" "}
+            <span className="font-medium">{project?.name ?? projectId}</span>?
+            {t("project.delete-desc-2")}{" "}
+            <code className="rounded bg-[var(--bg-subtle)] px-1 text-meta">
+              video-projects/{projectId}
+            </code>{" "}
+            {t("project.delete-desc-3")}
+          </>
+        }
+        busy={deleting}
+        error={deleteError}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={onDelete}
+      />
+
+      <CloneProjectModal
+        source={
+          cloneOpen ? { id: projectId, name: project?.name ?? projectId } : null
+        }
+        onClose={() => setCloneOpen(false)}
+        onCloned={(p) => {
+          setCloneOpen(false);
+          router.push(`/projects/${p.id}`);
+        }}
+      />
+
+      <Modal
+        title={t("project.start-edit")}
+        open={editOpen}
+        onClose={() => {
+          if (!starting) setEditOpen(false);
+        }}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              disabled={starting}
+              onClick={() => setEditOpen(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button disabled={starting} onClick={onStartEdit}>
+              <Sparkles size={15} strokeWidth={2} />
+              {starting ? t("project.starting") : t("project.start-edit-short")}
+            </Button>
+          </>
+        }
+      >
+        {startError && (
+          <ErrorBanner message={t("project.start-error")} detail={startError} />
+        )}
+        <p className="text-sm text-[var(--text-muted)]">
+          {t("project.edit-modal-desc")}
+        </p>
+        <Panel>
+          <BriefSummaryRow label={t("project.mode.label")}>
+            {finishMode === "draft" ? t("project.mode.draft") : t("project.mode.final")}
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("project.sum-source")}>
+            {briefView.sourceDescription.trim() || (
+              <span className="text-[var(--text-muted)]">
+                {t("brief.not-described")}
+              </span>
+            )}
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("brief.edit-request")}>
+            {briefView.notes.trim() ? (
+              <span className="line-clamp-3 whitespace-pre-line">
+                {briefView.notes}
+              </span>
+            ) : (
+              <span className="text-[var(--text-muted)]">{t("brief.none")}</span>
+            )}
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("project.sum-autocut")}>
+            <YesNo value={briefView.autoCut} />
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("brief.subtitles")}>
+            <YesNo value={briefView.subtitles} />
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("brief.highlight")}>
+            <YesNo value={briefView.highlightEnabled} />
+            {briefView.highlightEnabled &&
+              briefView.highlightKeywords.length > 0 && (
+                <span className="ml-1 text-[var(--text-muted)]">
+                  · {t("project.sum-keywords")}{" "}
+                  {briefView.highlightKeywords.join(", ")}
+                </span>
+              )}
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("brief.key-layout")}>
+            {briefView.keyLayoutEnabled ? (
+              <>
+                {t("project.sum-main-key")}{" "}
+                {briefView.mainKey.trim() || (
+                  <span className="text-[var(--text-muted)]">
+                    {t("brief.ai-choose")}
+                  </span>
+                )}
+                {briefView.relatedKeys.length > 0 && (
+                  <span className="ml-1 text-[var(--text-muted)]">
+                    · {t("project.sum-related-keys")}{" "}
+                    {briefView.relatedKeys.join(", ")}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-[var(--text-muted)]">{t("common.off")}</span>
+            )}
+          </BriefSummaryRow>
+          <BriefSummaryRow label={t("brief.illustrations")}>
+            <YesNo value={briefView.autoIllustrations} />
+            {briefView.autoIllustrations && briefView.illustrationModel && (
+              <span className="ml-1 text-[var(--text-muted)]">
+                · model: {briefView.illustrationModel}
+              </span>
+            )}
+          </BriefSummaryRow>
+          <BriefSummaryRow label="Style Design">
+            {styleDisplayName(stylesData, briefView.styleId, t)}
+          </BriefSummaryRow>
+          <BriefSummaryRow label="Skill">
+            {briefView.skill ?? t("brief.ai-pick-skill")}
+          </BriefSummaryRow>
+          <BriefSummaryRow label="Sound effect">
+            {t(SFX_MODE_LABEL[briefView.sfxMode])}
+          </BriefSummaryRow>
+        </Panel>
+        <AiModelBlock
+          model={editModel}
+          effort={editEffort}
+          onModelChange={setEditModel}
+          onEffortChange={setEditEffort}
+          disabled={starting}
+        />
+        <Field label={t("project.extra-notes")} htmlFor="edit-extra-notes">
+          <textarea
+            id="edit-extra-notes"
+            className="input"
+            rows={2}
+            value={extraNotes}
+            onChange={(e) => setExtraNotes(e.target.value)}
+            placeholder={t("projects.notes-placeholder")}
+          />
+        </Field>
+      </Modal>
+    </div>
+  );
+}

@@ -1,0 +1,38 @@
+{
+  "name": "fabuloki",
+  "license": "MIT",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fabuloki video editor",
+  "workspaces": [
+    "apps/web",
+    "apps/server",
+    "engines/remotion"
+  ],
+  "scripts": {
+    "build": "npm run build -w apps/server && npm run build -w apps/web",
+    "start": "node start/local.mjs",
+    "typecheck": "npm run typecheck -w apps/server && npm run typecheck -w apps/web && npm run typecheck -w engines/remotion",
+    "check:environment": "node start/doctor.mjs",
+    "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev -w apps/server\" \"npm run dev -w apps/web\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  },
+  "dependencies": {
+    "hyperframes": "^0.8.197"
+  },
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "overrides": {
+    "zod": "^4.6.7"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "better-sqlite3@13.0.3": true,
+    "fsevents@2.3.3": false
+  }
+}

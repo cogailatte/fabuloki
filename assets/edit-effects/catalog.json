@@ -1,0 +1,263 @@
+[
+  {
+    "id": "chart_bars",
+    "name": "Biểu đồ cột",
+    "use": "Số liệu theo năm, giá, tăng trưởng",
+    "inputs": "4–6 nhãn + số thật, cột nhấn, nhãn nhấn",
+    "duration": "3–5 s",
+    "thumbnail": null,
+    "required": [
+      "4–6 cặp nhãn + số thật (ví dụ 2022: 42; 2023: 58)"
+    ]
+  },
+  {
+    "id": "map_route",
+    "name": "Bản đồ + tuyến đường",
+    "use": "Vị trí dự án, kết nối giao thông",
+    "inputs": "Ảnh/KML bản đồ, điểm đến, nhãn",
+    "duration": "2–10 s",
+    "thumbnail": null,
+    "required": [
+      "Ảnh bản đồ có đánh dấu dự án",
+      "Tên điểm đến và nhãn"
+    ]
+  },
+  {
+    "id": "amenity_grid",
+    "name": "Lưới tiện ích",
+    "use": "Liệt kê tiện ích",
+    "inputs": "Ảnh từng tiện ích, nhãn",
+    "duration": "2–6 s",
+    "thumbnail": null,
+    "required": [
+      "Ảnh từng tiện ích (4 ảnh)"
+    ]
+  },
+  {
+    "id": "tree_diagram",
+    "name": "Nhánh cây",
+    "use": "Liệt kê quyền lợi/tính năng đi kèm",
+    "inputs": "Tiêu đề + 3–5 mục con (icon, nhãn, số liệu)",
+    "duration": "4–6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "note_board",
+    "name": "Bảng ghi chú / điều kiện",
+    "use": "Liệt kê điều kiện, yêu cầu, ghi chú",
+    "inputs": "Tiêu đề + 3–5 dòng",
+    "duration": "3–6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "glass_list",
+    "name": "Danh sách kính mờ",
+    "use": "3 lý do/giá trị/nguyên tắc, vẻ cao cấp",
+    "inputs": "Tiêu đề 2 dòng + 3 mục (tên, dòng phụ, icon)",
+    "duration": "4–6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "logo_pop",
+    "name": "Icon pop + luồng sáng",
+    "use": "Nhắc tên 2–4 sản phẩm/AI/thương hiệu",
+    "inputs": "Tên + ảnh logo (người dùng cung cấp) + mốc nhắc",
+    "duration": "3–6 s",
+    "thumbnail": null,
+    "required": [
+      "Ảnh logo từng thương hiệu (3 logo)"
+    ]
+  },
+  {
+    "id": "growth_card",
+    "name": "Bảng tăng trưởng",
+    "use": "Tốc độ/phần trăm tăng trưởng, \"tăng gấp N lần\"",
+    "inputs": "Các mốc đường cong, giá trị đỉnh (số thật), nhãn, kỳ",
+    "duration": "4–6 s",
+    "thumbnail": null,
+    "required": [
+      "Giá trị đỉnh (số thật)"
+    ]
+  },
+  {
+    "id": "cap_stack",
+    "name": "Chữ chồng nhấn xanh (trên người nói)",
+    "use": "Câu khẳng định ngắn cần nhấn một cụm",
+    "inputs": "3 dòng: nhỏ trắng / cụm khóa xanh to / nhỏ trắng",
+    "duration": "2–4 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "cap_editorial",
+    "name": "Chữ tạp chí: chữ khổng lồ + đỏ nghiêng",
+    "use": "Câu mở đầu/câu hỏi gây chú ý",
+    "inputs": "4 đoạn: nhỏ / rất lớn / đỏ nghiêng / nhỏ",
+    "duration": "2–4 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "popup_notes",
+    "name": "Ảnh có chú thích",
+    "use": "Giải thích bằng ảnh",
+    "inputs": "1 ảnh + 2–3 chú thích (chính + phụ)",
+    "duration": "3–5 s",
+    "thumbnail": null,
+    "required": [
+      "1 ảnh cần giải thích"
+    ]
+  },
+  {
+    "id": "typo",
+    "name": "Typography nhấn từ khóa",
+    "use": "Cụm khóa, không có hình cụ thể",
+    "inputs": "1 cụm ≤ 5 từ; kiểu typo_gold/fire/bronze/neon_orange/neon_blue",
+    "duration": "2–4 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "connect_flow",
+    "name": "Kết nối A → B",
+    "use": "\"Tích hợp\", \"nằm sẵn trong\"",
+    "inputs": "Tên A, tên B, 2–4 dòng nội dung B",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "feature_card",
+    "name": "Thẻ \"đỉnh nhất\"",
+    "use": "Nhấn một lợi thế",
+    "inputs": "Tiêu đề + cụm nhấn",
+    "duration": "3–4 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "tilt_carousel",
+    "name": "Thẻ nghiêng cuộn dọc",
+    "use": "Liệt kê 2–3 điểm/gói/mục theo thứ tự (01, 02, 03)",
+    "inputs": "Với mỗi thẻ: tiêu đề, dòng phụ, số thứ tự; thẻ đầu có nút ▶",
+    "duration": "~7 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "location_full",
+    "name": "Vị trí + tiện ích (toàn khung, nền trơn, KHÔNG người nói)",
+    "use": "Giới thiệu vị trí dự án, nối với 3 địa điểm/tiện ích",
+    "inputs": "Ảnh hoặc video bản đồ vị trí, 3 tên địa điểm (+ icon)",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": [
+      "Ảnh hoặc video bản đồ vị trí (nền)"
+    ]
+  },
+  {
+    "id": "icon_trio",
+    "name": "3 icon 3D (thư viện icon, đổi/đổi màu được) + nhãn (trên người nói)",
+    "use": "Nêu 3 ý/3 bước/3 lợi ích ngắn (ví dụ \"Sở Hữu, Nhận Nhà, Khai Thác\")",
+    "inputs": "3 nhãn ngắn (1–2 từ) + chọn icon cho từng ý",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "poster_view",
+    "name": "Poster · thẻ ảnh sau nhân vật (toàn khung, nền riêng)",
+    "use": "Mở đầu/giới thiệu dự án, chiến dịch, sự kiện kiểu poster sang trọng",
+    "inputs": "Tiêu đề 2 từ (serif vàng), 1 cụm chữ viết tay, 2 dòng phụ, ĐỦ 4 ảnh dự án (bắt buộc, hiện lần lượt 1→4), video người nói ĐÃ TÁCH NỀN",
+    "duration": "~7.4 s",
+    "thumbnail": null,
+    "required": [
+      "Ảnh thẻ 1 (hiện đầu tiên)",
+      "Ảnh thẻ 2",
+      "Ảnh thẻ 3",
+      "Ảnh thẻ 4"
+    ]
+  },
+  {
+    "id": "prize_number",
+    "name": "Số thưởng khổng lồ · chữ số NHẢY + đơn vị (trên người nói toàn khung, nửa dưới)",
+    "use": "Giải thưởng, ưu đãi, chiết khấu, giá trị quà tặng (\"150 TRIỆU\", \"20 %\", \"2 TỶ\")",
+    "inputs": "Dòng nhỏ phía trên, con số, đơn vị (triệu / % / tỷ), chữ trên nút kêu gọi",
+    "duration": "~6.2 s",
+    "thumbnail": null,
+    "required": [
+      "Con số lớn (ví dụ 150)",
+      "Đơn vị (triệu / % / tỷ)"
+    ]
+  },
+  {
+    "id": "stat_stack",
+    "name": "Số lớn sau đầu + thông số: CON SỐ khổng lồ xanh ngọc chấm halftone nằm SAU đầu người nói (NHẢY số, giữ %) + 3 dòng: dẫn trắng, cụm khóa vàng, số thông số trắng khổng lồ kèm đơn vị nhỏ",
+    "use": "Ưu đãi/chiết khấu kèm thông số căn hộ (\"10% · sở hữu căn hộ 2PN · 69 m2\")",
+    "inputs": "Con số lớn (vd 10%), dòng dẫn, cụm khóa, số thông số + đơn vị; video người nói đã tách nền (để đầu nằm trước số)",
+    "duration": "~6.2 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "stat_supply",
+    "name": "Số khổng lồ + nhãn + đơn vị (trên video): Nhãn xanh ngọc, SỐ trắng khổng lồ nhảy (có dấu chấm nghìn), đơn vị trắng bên phải, dòng viết tay đè giữa",
+    "use": "Nêu một con số SỐ LƯỢNG lớn (số căn, số khách, diện tích) kèm nhãn (\"cung ứng 1.438 căn hộ ra thị trường\")",
+    "inputs": "nhãn, con số (vd 1.438), đơn vị, dòng viết tay",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "typo_yellow",
+    "name": "Số tiền vàng phát sáng + chữ viết tay: Chữ viết tay trắng \"Với\", số tiền VÀNG phát sáng rơi vào, chữ viết tay \"Tháng\" lệch phải bên dưới (trên đầu người nói)",
+    "use": "Nói một số tiền/mức giá ngắn (\"Với 120 TR / Tháng\")",
+    "inputs": "chữ dẫn, số tiền (vd 120 TR), chữ đuôi",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "dual_caption",
+    "name": "Hai cụm chữ trên đầu và ngang ngực: Cụm trên đầu: chữ viết tay + cụm khóa gradient kem-cam phát sáng; cụm ngang ngực: dòng trắng + cụm khóa cùng kiểu",
+    "use": "Câu có hai vế (\"Nhà KHU ĐÔNG – rất nhiều dự án ĐỂ LỰA CHỌN\")",
+    "inputs": "chữ viết tay + cụm khóa trên; dòng trắng + cụm khóa dưới",
+    "duration": "~6 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "flow_zigzag",
+    "name": "Sơ đồ chữ zigzag · camera trượt theo ý: Nền kem-cam toàn khung, các ý chữ cam nổi so le trái-phải, đường cong trắng vẽ nối, camera trượt xuống theo từng ý; các cảnh liền nhau cùng mẫu = MỘT sơ đồ",
+    "use": "Giải thích một PHƯƠNG ÁN/QUY TRÌNH nhiều bước liền nhau (thanh toán nhanh → giãn tiến độ → 30% nhận nhà → 70% vay → lịch trả)",
+    "inputs": "2–6 ý (mỗi cảnh một ý), 1 ảnh cho ý đầu",
+    "duration": "~6 s (9 s cho 6 ý)",
+    "thumbnail": null,
+    "required": [
+      "1 ảnh minh họa cho ý đầu (thẻ ảnh viền cam)"
+    ]
+  },
+  {
+    "id": "compare_cards",
+    "name": "So sánh hai thẻ",
+    "use": "So sánh trước/sau, A/B",
+    "inputs": "Hai nhóm thông tin",
+    "duration": "3–5 s",
+    "thumbnail": null,
+    "required": []
+  },
+  {
+    "id": "screenshot_card",
+    "name": "Ảnh chụp trang web nổi",
+    "use": "Nhắc một trang/công cụ thật",
+    "inputs": "1 ảnh chụp màn hình",
+    "duration": "3–4 s",
+    "thumbnail": null,
+    "required": [
+      "1 ảnh chụp màn hình"
+    ]
+  }
+]

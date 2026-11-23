@@ -1,0 +1,62 @@
+.frame { position: relative; width: 100%; overflow: hidden; border-radius: 8px; background: var(--preview-bg); isolation: isolate; }
+.frame svg { display: block; width: 100%; height: auto; }
+.frame .subject { transform-origin: 320px 178px; }
+.frame .title { transform-origin: 46px 59px; }
+.frame .detail { transform-origin: center; }
+.frame .line { stroke-dasharray: 1200; stroke-dashoffset: 0; }
+.frame[data-playing="true"] .subject, .hoverable:hover .subject { animation: scene 6s ease-in-out infinite; }
+.frame[data-playing="true"] .title, .hoverable:hover .title { animation: title 6s ease-out infinite; }
+.frame[data-playing="true"] .detail, .hoverable:hover .detail { animation: detail 6s ease-in-out infinite; }
+.frame[data-playing="true"][data-family="drawing"] .line, .frame[data-playing="true"][data-family="blueprint"] .line { animation: draw 6s ease-in-out infinite; }
+.frame[data-playing="true"][data-family="clay"] .subject { animation: bounce 6s cubic-bezier(.2,.8,.3,1.2) infinite; }
+.frame[data-playing="true"][data-family="pixel"] .subject, .frame[data-playing="true"][data-family="collage"] .subject { animation: scene 6s steps(8,end) infinite; }
+.frame[data-playing="true"][data-family="type"] .title, .frame[data-playing="true"][data-family="comic"] .title { animation: punch 6s cubic-bezier(.2,.8,.3,1.2) infinite; }
+.frame[data-playing="true"][data-family="film"] .subject, .frame[data-playing="true"][data-family="ink"] .subject, .frame[data-playing="true"][data-family="paint"] .subject { animation: drift 6s ease-in-out infinite; }
+.frame[data-playing="true"][data-family="terminal"] .subject { animation: flicker 6s steps(1,end) infinite; }
+@keyframes scene { 0%,100% { opacity: 0; transform: translateY(28px) scale(.92); } 15%,80% { opacity:1; transform:translateY(0) scale(1); } 95% {opacity:0;transform:translateX(-18px);} }
+@keyframes title { 0%,8%,100% { opacity:0;transform:translateY(16px); } 22%,85% {opacity:1;transform:translateY(0);} 95% {opacity:0;transform:translateY(-8px);} }
+@keyframes detail { 0%,16%,100% {opacity:0;transform:translateX(-12px);} 30%,82% {opacity:1;transform:translateX(0);} 95% {opacity:0;transform:translateX(12px);} }
+@keyframes draw {0%,5%{stroke-dashoffset:1200;opacity:0;}35%,85%{stroke-dashoffset:0;opacity:1;}100%{stroke-dashoffset:0;opacity:0;}}
+@keyframes bounce {0%,100%{opacity:0;transform:translateY(-60px) scale(.7);}20%{opacity:1;transform:translateY(8px) scale(1.08,.92);}30%,80%{opacity:1;transform:translateY(0) scale(1);}90%{opacity:0;transform:translateY(-12px);}}
+@keyframes punch {0%,100%{opacity:0;transform:scale(.6) rotate(-6deg);}18%,78%{opacity:1;transform:scale(1) rotate(0);}90%{opacity:0;transform:scale(1.1);}}
+@keyframes drift {0%,100%{opacity:0;transform:translateX(-6px) scale(1);}15%{opacity:1;}80%{opacity:1;transform:translateX(6px) scale(1.04);}95%{opacity:0;}}
+@keyframes flicker {0%,100%{opacity:0;}10%{opacity:1;}12%{opacity:.4;}14%,85%{opacity:1;}90%{opacity:0;}}
+@media (prefers-reduced-motion: reduce) { .frame * { animation: none !important; } }
+
+.footage { position:relative; display:flex; aspect-ratio:8/5; width:100%; overflow:hidden; border-radius:8px; background:var(--study-paper); color:var(--study-ink); }
+.mediaFrame { container-type:inline-size; position:relative; flex:0 0 52%; height:100%; overflow:hidden; background:#17232e; }
+.mediaFrame video,.mediaFrame img { width:100%; height:100%; object-fit:cover; }
+.footageShade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.28),transparent 25%,transparent 35%,rgba(0,0,0,.72)); }
+.clipBrand { position:absolute; top:7%; left:8%; color:#fff; font:500 clamp(7px,.6vw,12px)/1.4 Inter,sans-serif; letter-spacing:.16em; }
+.clipCaption { position:absolute; left:8%; right:6%; bottom:13%; display:flex; flex-direction:column; gap:8px; color:#fff; }
+.clipCaption strong { font:600 clamp(14px,11cqw,30px)/.95 Georgia,serif; letter-spacing:.01em; }
+.clipEyebrow,.clipLocation,.clipFooter { font:500 clamp(7px,.65vw,12px)/1.4 Inter,sans-serif; }
+.clipEyebrow { letter-spacing:.2em; color:var(--study-accent); }
+.clipRule { display:block; width:28px; height:2px; background:var(--study-accent); }
+.clipFooter { position:absolute; bottom:5%; left:8%; color:#fff; letter-spacing:.16em; }
+.studyAside { flex:1; min-width:0; padding:8% 6%; display:flex; flex-direction:column; justify-content:space-between; gap:14px; }
+.studyAside>span { font:500 9px/1.4 Inter,sans-serif; letter-spacing:.16em; }
+.studyAside strong { font:600 clamp(14px,1.35vw,23px)/1.2 Georgia,serif; }
+.studyAside small { font:500 10px/1.7 Inter,sans-serif; opacity:.7; }
+.portrait { aspect-ratio:9/16; max-height:480px; width:min(100%,270px); margin:auto; }
+.portrait .mediaFrame { flex:1; width:100%; }
+.portrait .clipCaption strong { font-size:clamp(20px,11cqw,34px); }
+.portrait .clipBrand,.portrait .clipEyebrow,.portrait .clipLocation,.portrait .clipFooter { font-size:11px; }
+.originalBadge {position:absolute;top:5%;left:8%;padding:5px 8px;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;font:500 11px/1.4 Inter,sans-serif;}
+.footage[data-family="type"] .clipCaption strong,.footage[data-family="comic"] .clipCaption strong,.footage[data-family="app"] .clipCaption strong {font-family:Inter,sans-serif;font-weight:900;}
+.footage[data-family="type"] .clipCaption,.footage[data-family="comic"] .clipCaption {bottom:20%;transform:rotate(-4deg);}
+.footage[data-family="type"] .clipCaption strong {background:var(--study-accent);color:#171717;padding:8px;}
+.footage[data-family="paper"] .mediaFrame,.footage[data-family="collage"] .mediaFrame {margin:3%;height:90%;flex-basis:46%;box-shadow:4px 5px 0 rgba(0,0,0,.16);transform:rotate(-2deg);}
+.footage.portrait .mediaFrame {margin:0;height:100%;transform:none;box-shadow:none;}
+.footage[data-family="blueprint"] .footageShade,.footage[data-family="terminal"] .footageShade {background:linear-gradient(transparent,rgba(5,30,52,.85)),repeating-linear-gradient(0deg,transparent 0 27px,rgba(70,185,235,.1) 28px 29px);}
+.footage[data-family="terminal"] .clipCaption strong,.footage[data-family="blueprint"] .clipCaption strong {font-family:monospace;color:var(--study-accent);}
+.footage[data-family="neon"] .clipCaption strong {text-shadow:0 0 14px var(--study-accent);}
+.footage[data-family="deco"] .clipCaption {border:1px solid var(--study-accent);padding:8px;}
+.footage[data-family="film"] .mediaFrame::after {content:"";position:absolute;inset:0;border-top:14px solid #111;border-bottom:14px solid #111;pointer-events:none;}
+.footage[data-family="film"] .clipCaption strong {font-weight:400;}
+.footage[data-live="true"] .clipCaption {animation:clip-title 8s ease-out infinite;}
+.footage[data-live="true"][data-family="type"] .clipCaption,.footage[data-live="true"][data-family="comic"] .clipCaption {animation:clip-pop 8s cubic-bezier(.2,.9,.3,1.15) infinite;}
+@keyframes clip-title {0%,100%{opacity:0;translate:0 14px;}15%,85%{opacity:1;translate:0 0;}95%{opacity:0;translate:0 -6px;}}
+@keyframes clip-pop {0%,100%{opacity:0;scale:.75;}12%,85%{opacity:1;scale:1;}95%{opacity:0;scale:1.05;}}
+
+.footage[data-playing="false"] .clipCaption { animation-play-state:paused; }
