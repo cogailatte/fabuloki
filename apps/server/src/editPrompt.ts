@@ -404,44 +404,44 @@ function styleDesignLines(
 }
 
 function brandLogoLibraryLines(brandLogoLibraryCount: number): string[] {
-  const lines: string[] = [];
+  const lines = ["## LOGO CỦA CÁC BRAND KHÁC"];
   if (brandLogoLibraryCount > 0) {
-    lines.push("## LOGO CỦA CÁC BRAND KHÁC");
     lines.push(
-      `Repo có sẵn thư viện ${brandLogoLibraryCount} logo brand tại \`assets/brand-logos/\` ` +
-        "(danh mục: `assets/brand-logos/library.json` - đọc file đó để biết có brand nào, " +
-        "tên file và MÃ MÀU chính thức của từng brand).",
+      `Thư viện có ${brandLogoLibraryCount} logo tại \`assets/brand-logos/\`. ` +
+        "Xem tên file và màu trong danh mục `assets/brand-logos/library.json`.",
     );
-    lines.push(
-      "QUY TRÌNH BẮT BUỘC: đọc kịch bản/transcript, LIỆT KÊ mọi thương hiệu được nhắc tới " +
-        "(Facebook, TikTok, Claude, Gemini, OpenAI, Shopee...), rồi với TỪNG brand tìm logo " +
-        "theo đúng thứ tự dưới đây trước khi dựng scene có nhắc tên brand đó.",
-    );
-    lines.push(
-      "- Có trong `assets/brand-logos/` -> DÙNG FILE ĐÓ. CẤM tự vẽ lại logo brand, CẤM nhờ " +
-        "AI tạo ảnh (Gemini, ChatGPT...) sinh logo brand - logo sai nhận diện là lỗi nhìn ra ngay.",
-    );
-    lines.push(
-      "- Cách dùng: CHÉP file cần dùng vào `assets/` của project trước, rồi mới tham chiếu. " +
-        "Remotion chỉ stage file NẰM TRONG project, trỏ thẳng ra ngoài là render 404.",
-    );
-    lines.push(
-      "- File là SVG MỘT MÀU (mặc định đen). Muốn đổi màu thì nhúng SVG inline rồi set " +
-        "`fill` - dùng đúng mã màu brand trong library.json, hoặc trắng/đen tùy nền cho dễ đọc.",
-    );
-    lines.push(
-      "- Brand CHƯA có trong thư viện: gọi `POST http://localhost:6869/api/brand-logos` với " +
-        '`{"name":"<tên brand>"}`. Server tự tìm logo chính thức trên mạng (Simple Icons rồi ' +
-        "Wikidata), tải về `assets/brand-logos/` và trả `relPath`. Chép file đó vào `assets/` " +
-        "của project rồi dùng như trên.",
-    );
-    lines.push(
-      "- Chỉ khi endpoint trả 404 BRAND_LOGO_NOT_FOUND thì mới được bỏ logo: khi đó viết TÊN " +
-        "brand bằng chữ (font của Style Design) và ghi vào báo cáo cuối. " +
-        "TUYỆT ĐỐI KHÔNG tự vẽ, không tự chế, không nhờ AI tạo ảnh (Gemini, ChatGPT...) sinh logo - trong MỌI trường hợp.",
-    );
-    lines.push("");
+  } else {
+    lines.push("Thư viện logo đang trống. Nếu cần logo, lấy từ API bên dưới.");
   }
+  lines.push(
+    "QUY TRÌNH BẮT BUỘC: đọc kịch bản/transcript, LIỆT KÊ mọi thương hiệu được nhắc tới " +
+      "(Facebook, TikTok, Claude, Gemini, OpenAI, Shopee...), rồi với TỪNG brand tìm logo " +
+      "theo đúng thứ tự dưới đây trước khi dựng scene có nhắc tên brand đó.",
+  );
+  lines.push(
+    "- Có trong `assets/brand-logos/` -> DÙNG FILE ĐÓ. CẤM tự vẽ lại logo brand, CẤM nhờ " +
+      "AI tạo ảnh (Gemini, ChatGPT...) sinh logo brand - logo sai nhận diện là lỗi nhìn ra ngay.",
+  );
+  lines.push(
+    "- Cách dùng: CHÉP file cần dùng vào `assets/` của project trước, rồi mới tham chiếu. " +
+      "Remotion chỉ stage file NẰM TRONG project, trỏ thẳng ra ngoài là render 404.",
+  );
+  lines.push(
+    "- File là SVG MỘT MÀU (mặc định đen). Muốn đổi màu thì nhúng SVG inline rồi set " +
+      "`fill` - dùng đúng mã màu brand trong library.json, hoặc trắng/đen tùy nền cho dễ đọc.",
+  );
+  lines.push(
+    "- Brand CHƯA có trong thư viện: gọi `POST http://localhost:6869/api/brand-logos` với " +
+      '`{"name":"<tên brand>"}`. Server tự tìm logo chính thức trên mạng (Simple Icons rồi ' +
+      "Wikidata), tải về `assets/brand-logos/` và trả `relPath`. Chép file đó vào `assets/` " +
+      "của project rồi dùng như trên.",
+  );
+  lines.push(
+    "- Chỉ khi endpoint trả 404 BRAND_LOGO_NOT_FOUND thì mới được bỏ logo: khi đó viết TÊN " +
+      "brand bằng chữ (font của Style Design) và ghi vào báo cáo cuối. " +
+      "TUYỆT ĐỐI KHÔNG tự vẽ, không tự chế, không nhờ AI tạo ảnh (Gemini, ChatGPT...) sinh logo - trong MỌI trường hợp.",
+  );
+  lines.push("");
   return lines;
 }
 

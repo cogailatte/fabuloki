@@ -13,6 +13,20 @@ Phạm vi là bản mã nguồn đầu tiên của Fabuloki. Gói macOS nguồn 
 
 Bản mã nguồn để công khai dùng danh mục logo trống. Danh mục tải về hoặc do người dùng thêm được lưu trên máy. [Nguồn và quyền sử dụng logo](../assets/brand-logos/README.md).
 
+## Kho tài nguyên trong bản công khai
+
+Đối chiếu trực tiếp gói Bisedit 2.0.1 với danh mục và file trong Fabuloki cho thấy phần mô tả dựng và file media được chuyển khác nhau.
+
+| Nhóm | Bisedit 2.0.1 | Fabuloki công khai |
+| --- | --- | --- |
+| Quizzy | 30 mục motion và 30 clip mẫu MP4 | Giữ 30 ID và mô tả motion |
+| Kho hiệu ứng | 26 mục, kèm 27 JPG và một MP4 | Giữ 26 ID, mô tả, thông số và yêu cầu đầu vào |
+| Phong cách dựng | 52 mục và hai file minh họa | Giữ 52 ID và mô tả phong cách |
+| Hiệu ứng âm thanh | 107 file âm thanh trong gói. Danh mục có 125 mục | Sáu WAV tổng hợp cho Fabuloki |
+| Logo thương hiệu | 125 file logo có sẵn | Danh mục ban đầu trống. App đặt hướng dẫn lấy logo theo yêu cầu trong prompt dựng |
+
+Fabuloki giữ nguồn có kiểm soát cho từng loại tài nguyên. [Mã tìm logo](../apps/server/src/brandLogos.ts) · [Mã tạo ảnh Gemini](../apps/server/src/imageProviders/index.ts) · [Hướng dẫn dựng](../.claude/skills/video-pipeline/SKILL.md) · [Thông báo nguồn và giấy phép](../THIRD_PARTY_NOTICES.md)
+
 ## Bỏ lại hoặc thay thế
 
 | Bỏ lại | Lý do và ảnh hưởng |
