@@ -2,7 +2,7 @@
 
 Fabuloki là app dựng video tại máy cho nội dung kể chuyện bằng tiếng Việt. Bạn có thể đưa clip vào để cắt hoặc dịch, bắt đầu từ bài viết để làm video có giọng đọc, rồi chỉnh cảnh, phụ đề và âm thanh trên timeline trước khi xuất MP4.
 
-**[Cài và mở](#cài-và-mở-fabuloki) · [Chọn công cụ](#bạn-muốn-làm-gì) · [Làm video đầu tiên](#video-đầu-tiên)**
+**[Cài và mở](#cài-và-mở-fabuloki) · [Chọn công cụ](#bạn-muốn-làm-gì) · [Làm video đầu tiên](#video-đầu-tiên) · [Kiến trúc](#kiến-trúc) · [CPU và GPU](#khi-nào-dùng-cpu-hay-gpu)**
 
 ![Giao diện Fabuloki với phiên Auto cut đã tạo hai clip dọc](docs/media/fabuloki-auto-cut.png)
 
@@ -42,6 +42,13 @@ Nếu đã clone repo, mở thư mục đó trong Finder và bấm đúp [Open F
 - Muốn cập nhật bản clone, chạy `git pull` trong thư mục Fabuloki rồi mở lại. Giữ cửa sổ lệnh mở khi sử dụng và nhấn Ctrl+C để dừng.
 - Vào **Kết nối** để thiết lập tài khoản AI theo nhu cầu. faster-whisper, VieNeu-TTS và model ngoại tuyến cài riêng khi cần.
 
+### Yêu cầu và kết nối tùy chọn
+
+- **Chạy app** cần Node.js tương thích, Chrome, FFmpeg và FFprobe. Khi cài thủ công, có thể chọn Node.js 24 từ 24.22.1 trở lên trong nhánh 24. Dùng `npm run check:environment` hoặc thẻ **Kiểm tra hệ thống** trong **Cấu hình**. [Yêu cầu Node.js](package.json) · [Mã kiểm tra môi trường](start/doctor.mjs)
+- **AI trực tuyến** cấu hình theo công cụ trong **Kết nối**. Bài cắt theo thời lượng bên dưới chạy tại máy mà không cần tài khoản AI. [Mẫu cấu hình](.env.example)
+- **Bóc lời hoặc giọng đọc ngoại tuyến** cài Python 3.11–3.14 và gói tương ứng. Model được tải ở lần dùng đầu. [Kiểm tra Python và model](start/doctor.mjs)
+- **VoiceStudio** dùng hồ sơ giọng từ dịch vụ VoiceStudio chạy riêng trên cùng máy, cổng 3900. [Kết nối VoiceStudio](apps/server/src/voiceStudio.ts)
+
 ## Bạn muốn làm gì?
 
 | Việc cần làm | Mở trong Fabuloki |
@@ -51,6 +58,8 @@ Nếu đã clone repo, mở thư mục đó trong Finder và bấm đúp [Open F
 | Biến văn bản hoặc bài viết thành video có lời kể | **Tính năng khác → Studio Kịch bản**. Duyệt kịch bản và giọng đọc trước bước dựng. |
 | Thêm phụ đề dịch hoặc lồng tiếng cho clip | **Tính năng khác → Dịch video**. Bóc lời thoại, duyệt bản dịch, rồi chọn phụ đề, lồng tiếng hoặc cả hai. |
 | Thử giọng đọc tiếng Việt trên máy | **Tính năng khác → Giọng đọc**. Cài VieNeu-TTS rồi nghe thử một giọng có sẵn. |
+| Tạo ảnh minh họa hoặc thumbnail | **Tính năng khác → Images Project**. Tạo ảnh nền với Gemini API hoặc đưa ảnh nguồn của bạn vào. |
+| Xem motion cho video quiz hoặc chọn hiệu ứng dựng | **Quizzy** và **Kho hiệu ứng**. Duyệt danh mục và mô tả mẫu. |
 | Chuẩn bị nhận diện chung cho một series | **Style Design** để quản lý màu, font và logo. Dùng **Phong cách dựng** để chọn cách thể hiện cho từng video. |
 
 Mở **Hướng dẫn** ở thanh trên cùng để đọc hướng dẫn của trang đang xem. Các tính năng dùng AI trực tuyến cần thiết lập dịch vụ tương ứng trong **Kết nối**. Bài thử bên dưới chỉ dùng chế độ cắt theo thời lượng.
@@ -65,6 +74,54 @@ Thử biến một clip khoảng **90 giây** thành **hai clip dọc 9:16**, d�
 4. Khi trạng thái chuyển sang **Xong**, bấm **Mở project** ở **Project con đã tạo** để xem từng clip. Các file MP4 đã cắt nằm trong thư mục `assets/` của từng project con dưới `video-projects/`.
 
 Từ project con, bạn có thể tiếp tục chỉnh trên timeline hoặc mở **Hướng dẫn** để xem các bước dựng, kiểm tra và xuất bản cuối.
+
+## Kiến trúc
+
+Fabuloki chạy giao diện và API trên cùng máy. Trình duyệt gọi API và nhận tiến trình qua SSE. Với luồng dựng theo cảnh, HyperFrames tạo clip từng cảnh, rồi Remotion lắp clip, phụ đề và âm thanh thành MP4.
+
+```mermaid
+flowchart LR
+  UI["Next.js · giao diện :6868"] -->|REST và SSE| API["Express · API :6869"]
+  API --> DATA["SQLite và tệp dự án"]
+  API --> QUEUE["Hàng đợi dựng"]
+  QUEUE --> HF["HyperFrames · dựng cảnh"]
+  HF --> RM["Remotion · ghép timeline"]
+  RM --> OUT["MP4 trong outputs/"]
+```
+
+Dự án, file nhập, cấu hình riêng, model và bản xuất nằm trên máy. Các tác vụ dùng nhà cung cấp trực tuyến gửi dữ liệu cần thiết đến dịch vụ được chọn. [Khởi động](start/local.mjs) · [API](docs/API.md) · [Luồng render](docs/SPEC.md)
+
+### Tech stack
+
+| Tầng | Công nghệ |
+| --- | --- |
+| Giao diện | Next.js, React, TypeScript, Tailwind CSS, Remotion Player. [Phụ thuộc giao diện](apps/web/package.json) |
+| API và dữ liệu | Node.js, Express, SQLite qua `better-sqlite3`, hàng đợi dựng và SSE. [Phụ thuộc API](apps/server/package.json) |
+| Video và ảnh | HyperFrames dùng HTML/GSAP và Chrome để dựng cảnh. Remotion ghép timeline. FFmpeg và FFprobe xử lý, cắt hoặc kiểm tra media. [Workspace](package.json) · [Engine lắp ráp](engines/remotion/package.json) |
+| AI và giọng nói | Claude Agent SDK hoặc Codex CLI cho luồng dựng và chat tương ứng. Gemini API cho ảnh và các tác vụ có hỗ trợ. Soniox là một lựa chọn bóc lời. faster-whisper và VieNeu-TTS chạy qua Python. [Kết nối AI](apps/server/src/routes/providers.ts) · [Bóc lời](apps/server/src/stt.ts) |
+
+## Khi nào dùng CPU hay GPU?
+
+Các tùy chọn nằm ở **Cấu hình → Tăng tốc phần cứng và cài đặt render**. Dựng khung hình trong trình duyệt, mã hóa clip và nhận dạng giọng nói là ba bước riêng.
+
+| Bước | Cách xử lý trong Fabuloki |
+| --- | --- |
+| Dựng khung hình cho cảnh HyperFrames | Bật **GPU cho capture (browser)** để Fabuloki yêu cầu dùng GPU của Chrome. Khi tắt, HyperFrames dùng cơ chế tự dò mặc định của CLI và có thể dựng bằng phần mềm. [Cấu hình dựng](apps/server/src/renderSettings.ts) |
+| Mã hóa clip cảnh HyperFrames | App mặc định yêu cầu encode GPU cho bản nháp và để bản cuối dùng mặc định của engine. NVENC trên NVIDIA và VideoToolbox trên macOS là các đường tăng tốc khi khả dụng. [Cấu hình dựng](apps/server/src/renderSettings.ts) |
+| Ghép MP4 trong Remotion | Tùy chọn GPU cho capture gửi cấu hình ANGLE cho trình duyệt. Luồng ghép MP4 dùng bộ mã hóa phần mềm mặc định của Remotion. [Lệnh ghép video](apps/server/src/jobs/assemble.ts) · [Tùy chọn mã hóa Remotion](https://www.remotion.dev/docs/options/hardware-acceleration) |
+| Cắt hoặc đổi khung trong Auto cut | Mặc định dùng CPU với `libx264`. Khi bật **Encode GPU cho bản FINAL** và phát hiện NVENC, app thử `h264_nvenc`. Nếu lỗi, app cắt lại bằng CPU. [Mã Auto cut](apps/server/src/reframe.ts) |
+| Bóc lời ngoại tuyến | faster-whisper thử CUDA với float16 và chuyển sang CPU int8 khi CUDA không dùng được. [Mã bóc lời](apps/server/src/transcribe.ts) |
+
+Số job dựng song song, số worker HyperFrames và số luồng Remotion là các thiết lập riêng. Trên Windows đã chạy thử cài từ mã nguồn, mở app và cắt clip thành hai MP4 dọc. Chưa có số đo so sánh CPU với GPU hoặc phép thử render trên Mac thật. [Cấu hình mặc định](apps/server/src/renderSettings.ts) · [Bài thử cắt video](#video-đầu-tiên)
+
+## Khác gì so với AIEVv2?
+
+- Fabuloki giữ luồng dựng dự án, Auto cut, Dịch video và timeline. Bản hiện tại có thêm Quizzy, Kho hiệu ứng, mẫu Studio Kịch bản, lựa chọn Codex và kết nối VoiceStudio.
+- Bản công khai dùng Gemini API cho tạo ảnh. Các gateway ảnh dùng phiên đăng nhập web nằm ngoài bản này.
+- Bản công khai có sáu WAV tổng hợp cho dự án. Danh mục logo bên thứ ba bắt đầu trống. Quizzy và Kho hiệu ứng dùng mô tả mẫu, còn file video mẫu cũ nằm ngoài bản công khai.
+- Windows và macOS có tệp mở riêng như phần cài đặt ở trên. Cập nhật bản clone bằng `git pull`.
+
+[README AIEVv2](https://github.com/notivn/AIEVv2/blob/main/README.vi.md) · [Phạm vi chuyển mã và tài sản](docs/SOURCE-MIGRATION.md)
 
 ## Phát triển
 
